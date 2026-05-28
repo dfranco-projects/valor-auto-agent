@@ -1,0 +1,29 @@
+# python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# venv
+.venv
+
+# env / secrets
+.env
+.env.local
+
+# data artifacts
+data/*.db
+data/checkpoints.db
+data/snapshots/
+
+# ide
+.idea/
+.vscode/
+.DS_Store
+
+# tests
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
