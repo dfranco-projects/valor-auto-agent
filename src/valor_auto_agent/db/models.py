@@ -93,3 +93,13 @@ class UiPref(Base):
     active_thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     rater_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class ChatSession(Base):
+    # one row per chat thread, titled by its first user message, for the sidebar history
+    __tablename__ = "chat_session"
+
+    thread_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    title: Mapped[str] = mapped_column(String(256), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

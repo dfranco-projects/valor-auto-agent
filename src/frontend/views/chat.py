@@ -4,31 +4,45 @@ import streamlit as st
 
 from frontend import api
 from frontend.components import result_card
+from frontend.labels import model_label
 
 
 def render() -> None:
-    st.title("valor · search")
-    st.caption("portuguese used-car agent — olx + standvirtual, rated by your chosen model")
+    st.title("Valor-Auto")
 
-    for role, content in st.session_state.history:
-        with st.chat_message(role):
-            st.markdown(content)
+    _, mid, _ = st.columns([1, 5, 1])
+    with mid:
+        for role, content in st.session_state.history:
+            with st.chat_message(role):
+                st.markdown(content)
 
-    if st.session_state.pending_filters:
-        _filter_form()
+        if st.session_state.pending_filters:
+            _filter_form()
 
-    if st.session_state.top:
-        st.subheader("top picks")
-        for i, t in enumerate(st.session_state.top, 1):
-            result_card(i, t)
+        if st.session_state.top:
+            st.subheader("Top picks")
+            for i, t in enumerate(st.session_state.top, 1):
+                result_card(i, t)
 
-    prompt = st.chat_input("ask the agent (e.g. find me a bmw 320d under 15k)")
+    prompt = st.chat_input("Ask the agent — e.g. find me a bmw 320d under 15k")
     if prompt:
+        model = st.session_state.rater_model
+        if not _provider_ok(model):
+            st.error(
+                f"No API key configured for {model_label(model)}. "
+                "Add the provider key to .env and restart the backend."
+            )
+            return
         st.session_state.history.append(("user", prompt))
-        with st.spinner("thinking..."):
-            res = api.post_search(st.session_state.thread_id, prompt, st.session_state.rater_model)
+        with st.spinner("Thinking..."):
+            res = api.post_search(st.session_state.thread_id, prompt, model)
         _apply(res)
         st.rerun()
+
+
+def _provider_ok(model: str) -> bool:
+    ks = st.session_state.key_status
+    return bool(ks.get("gemini") if model.startswith("gemini") else ks.get("anthropic"))
 
 
 def _apply(res: dict) -> None:
@@ -44,7 +58,7 @@ def _apply(res: dict) -> None:
 
 
 def _filter_form() -> None:
-    st.info("filters needed — fill the form below to start the scrape")
+    st.info("Fill the form below to start the scrape")
     with st.form("filters"):
         c1, c2 = st.columns(2)
         with c1:
@@ -65,7 +79,7 @@ def _filter_form() -> None:
             fuel = st.selectbox("fuel", ["", "gasolina", "diesel", "hibrido", "eletrico", "gpl"])
             transmission = st.selectbox("transmission", ["", "manual", "automatica"])
             location = st.text_input("location", "")
-        if st.form_submit_button("scrape"):
+        if st.form_submit_button("Scrape"):
             values = {
                 "brand": brand or None,
                 "model": model or None,
@@ -79,7 +93,7 @@ def _filter_form() -> None:
                 "location": location or None,
             }
             values = {k: v for k, v in values.items() if v not in (None, "")}
-            with st.spinner("scraping olx + standvirtual and rating..."):
+            with st.spinner("Scraping olx + standvirtual and rating..."):
                 res = api.post_resume(st.session_state.thread_id, values)
             _apply(res)
             st.rerun()

@@ -26,8 +26,7 @@ DISPLAY_COLS = [
 
 
 def render() -> None:
-    st.title("valor · evaluations")
-    st.caption("every car you've rated — set a status and notes; decisions persist")
+    st.title("Evaluations")
 
     rows = _query()
     if not rows:

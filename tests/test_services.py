@@ -84,6 +84,17 @@ def test_status_filter(db):
     assert [r["external_id"] for r in list_evaluations(statuses=["unset"])] == ["car2"]
 
 
+def test_record_session_titles_once_and_lists(db):
+    from backend.services.sessions import list_sessions, record_session
+
+    record_session("a", "first bmw search")
+    record_session("a", "later message")  # must not rename
+    record_session("b", "audi search")
+
+    by_id = {s["thread_id"]: s["title"] for s in list_sessions()}
+    assert by_id == {"a": "first bmw search", "b": "audi search"}
+
+
 def test_pref_roundtrip(db):
     from backend.services.sessions import load_pref, new_thread, save_pref
 

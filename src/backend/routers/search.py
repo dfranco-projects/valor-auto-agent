@@ -4,13 +4,14 @@ from fastapi import APIRouter, Depends
 
 from backend.deps import get_graph
 from backend.schemas import ResumeRequest, SearchRequest, SearchResponse
-from backend.services import agent
+from backend.services import agent, sessions
 
 router = APIRouter(prefix="/api", tags=["search"])
 
 
 @router.post("/search", response_model=SearchResponse)
 async def search(req: SearchRequest, graph=Depends(get_graph)):
+    sessions.record_session(req.thread_id, req.message)
     return await agent.run_message(graph, req.thread_id, req.message, req.rater_model)
 
 

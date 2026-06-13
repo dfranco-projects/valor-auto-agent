@@ -80,3 +80,21 @@ def test_sessions_active_returns_thread(client):
     body = client.get("/api/sessions/active").json()
     assert body["thread_id"]
     assert body["history"] == []
+
+
+def test_sessions_index_and_load(client):
+    from backend.services.sessions import record_session
+
+    assert client.get("/api/sessions").json() == []
+
+    record_session("t-1", "find me a bmw 320d under 15k")
+    record_session("t-1", "this should not rename the session")
+
+    listed = client.get("/api/sessions").json()
+    assert len(listed) == 1
+    assert listed[0]["thread_id"] == "t-1"
+    assert listed[0]["title"] == "find me a bmw 320d under 15k"
+
+    loaded = client.get("/api/sessions/t-1").json()
+    assert loaded["thread_id"] == "t-1"
+    assert client.get("/api/sessions/active").json()["thread_id"] == "t-1"

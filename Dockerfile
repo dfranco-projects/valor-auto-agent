@@ -18,8 +18,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 #    --no-sync: use the deps from step 1; the project itself isn't needed yet
 RUN uv run --no-sync patchright install --with-deps chromium
 
-# 3. app source, then install the project itself
+# 3. app source + streamlit theme, then install the project itself
 COPY src ./src
+COPY .streamlit ./.streamlit
 RUN uv sync --frozen --no-dev
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

@@ -7,6 +7,18 @@ uv run --no-sync uvicorn backend.main:app --app-dir src --host 0.0.0.0 --port 80
 backend_pid=$!
 trap 'kill "$backend_pid" 2>/dev/null || true' EXIT
 
+# wait for the backend to accept connections before starting the ui (slim has no curl,
+# so probe the port with bash /dev/tcp)
+echo "waiting for backend on :8000 ..."
+for _ in $(seq 1 120); do
+    if (exec 3<>/dev/tcp/127.0.0.1/8000) 2>/dev/null; then
+        exec 3>&- 3<&-
+        echo "backend ready"
+        break
+    fi
+    sleep 0.5
+done
+
 # frontend in the foreground keeps the container alive
 uv run --no-sync streamlit run src/frontend/app.py \
     --server.address 0.0.0.0 \

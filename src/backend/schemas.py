@@ -58,6 +58,12 @@ class SessionOut(BaseModel):
     rater_model: str | None = None
 
 
+class SessionMeta(BaseModel):
+    thread_id: str
+    title: str
+    updated_at: str | None = None
+
+
 class ConfigOut(BaseModel):
     models: list[str]
     default_model: str
