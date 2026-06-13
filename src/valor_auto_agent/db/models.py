@@ -69,3 +69,27 @@ class Rating(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
     listing: Mapped[Listing] = relationship(back_populates="rating")
+
+
+class Evaluation(Base):
+    # a shopper decision on a car, keyed by (source, external_id) so it follows
+    # the car across re-searches rather than a single listing row
+    __tablename__ = "evaluation"
+    __table_args__ = (UniqueConstraint("source", "external_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(32))
+    external_id: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    notes: Mapped[str] = mapped_column(String(4096), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class UiPref(Base):
+    # single-row (id=1) ui state so the active chat thread + rater model survive reloads
+    __tablename__ = "ui_pref"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    active_thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rater_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)

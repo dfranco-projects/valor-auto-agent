@@ -1,69 +1,124 @@
 # valor-auto-agent
 
-portuguese used-car agent that scrapes **olx.pt** and **standvirtual.com**, persists listings to sqlite + markdown snapshots, then rates the batch 0-10 with a claude sub-agent and surfaces the top 10.
+A used-car shopping agent for the Portuguese market. It scrapes **OLX** and **Standvirtual**,
+rates every listing from 0–10 with the LLM of your choice, and gives you a persistent library to
+review, annotate, and decide on the cars worth chasing.
 
-## stack
+---
 
-- python 3.12 + uv
-- langgraph orchestration with `interrupt()` for collecting user filters mid-flow
-- patchright (stealth-patched playwright fork) for the crawler — both targets sit behind cloudflare
-- sqlalchemy 2.0 + sqlite for persistence, markdown snapshot per scrape under `data/snapshots/`
-- streamlit frontend
-- anthropic sdk + prompt caching for the rater sub-agent
+## Features
 
-## flow
+- **Two-source crawl** — OLX and Standvirtual in parallel, behind their Cloudflare front.
+- **LLM rating** — each batch is scored 0–10 using the batch itself as market context.
+- **Pick your model** — rate with Claude (Opus / Sonnet / Haiku) or Gemini (2.5 Pro / Flash).
+- **Persistent evaluations** — every rated car is saved; browse, filter, shortlist, and add notes.
+- **Decision tracking** — mark each car `shortlist` / `maybe` / `rejected` with free-text notes.
+- **Clean architecture** — a FastAPI backend over the domain core, a Streamlit UI that only speaks HTTP.
 
-1. user asks for cars in the streamlit chat
-2. agent confirms "run crawler?"; on yes the graph hits an `interrupt()`
-3. ui renders a filter form (brand, model, year, price, km, fuel, transmission, location)
-4. on submit, crawler scrapes olx + standvirtual concurrently
-5. listings persisted to sqlite + a markdown snapshot is written
-6. rater sub-agent scores every listing 0-10 using the batch itself as market context
-7. top 10 returned with rationale and source links
+## How it works
 
-## setup
+1. You describe what you want in the chat (e.g. *"find me a bmw 320d under 15k"*).
+2. The agent confirms intent and asks for structured filters (brand, year, price, km, fuel, …).
+3. On submit, both sites are scraped concurrently and the listings are persisted.
+4. The rater scores the batch and the top picks come back with rationale and source links.
+5. Every car lands in **Evaluations**, where your status and notes persist across sessions.
+
+## Architecture
+
+Three tiers with a real HTTP boundary — the UI never touches the database or the graph directly.
+
+```
+browser
+  │
+  ▼  http
+Streamlit (frontend/)  ──httpx──▶  FastAPI (backend/)
+                                      │
+                              valor_auto_agent (domain)
+                                graph · db · rater · crawler
+```
+
+- **`valor_auto_agent/`** — the domain core and the only published package: LangGraph
+  orchestration, the crawler, the rater sub-agent, and SQLite persistence.
+- **`backend/`** — a FastAPI service; the only tier that talks to the graph and the database.
+- **`frontend/`** — a Streamlit app that is a pure HTTP client of the backend.
+
+## Stack
+
+- Python 3.12 + [uv](https://docs.astral.sh/uv/)
+- [LangGraph](https://langchain-ai.github.io/langgraph/) — orchestration, with `interrupt()` to
+  collect filters mid-flow and a SQLite checkpointer for conversation memory
+- [Patchright](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright) — a stealth-patched Playwright
+  fork, since both targets sit behind Cloudflare
+- [FastAPI](https://fastapi.tiangolo.com/) + [Uvicorn](https://www.uvicorn.org/) — the backend
+- [Streamlit](https://streamlit.io/) — the frontend
+- SQLAlchemy 2.0 + SQLite — persistence, plus a Markdown snapshot per scrape under `data/snapshots/`
+- Anthropic + Google GenAI SDKs — the rater backends (Claude uses prompt caching)
+
+## Quickstart
 
 ```bash
 uv sync
 uv run patchright install chromium
-cp .env.example .env  # then set ANTHROPIC_API_KEY
+cp .env.example .env   # then add your API key(s)
 ```
 
-## run
+## Configuration
+
+Settings load from `.env`. Provider keys are read directly; everything else is `VALOR_`-prefixed.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | Required for Claude rating and the chat/classifier nodes |
+| `GEMINI_API_KEY` | — | Required to rate with Gemini models |
+| `VALOR_RATER_MODEL` | `claude-sonnet-4-6` | Default rater model (also selectable in the UI) |
+| `VALOR_API_BASE` | `http://localhost:8000` | Backend URL the frontend calls |
+| `VALOR_DB_URL` | `sqlite:///data/valor.db` | Listings, ratings, and evaluations store |
+| `VALOR_CHECKPOINT_DB` | `data/checkpoints.db` | LangGraph conversation checkpoints |
+| `VALOR_HEADLESS` | `true` | Run the browser headless |
+| `VALOR_MAX_PAGES` | `3` | Result pages to crawl per source |
+
+> You only need a key for the provider you actually rate with. With just a Gemini key, search and
+> rating still work; only the free-form chat assistant needs an Anthropic key.
+
+## Running
+
+The backend and frontend are two processes. In separate terminals:
 
 ```bash
-uv run streamlit run src/valor_auto_agent/app.py
+# 1) backend (keep to a single worker — one shared graph + SQLite checkpoint connection)
+uv run uvicorn backend.main:app --app-dir src
+
+# 2) frontend
+uv run streamlit run src/frontend/app.py
 ```
 
-## tests
+Then open the Streamlit URL (default <http://localhost:8501>).
+
+## Using the app
+
+- **Chat** — describe the car, fill the filter form, and get the top picks with rationale and links.
+- **Evaluations** — your full rated-car library. Filter by text, source, score, or status; edit
+  `status` and `notes` inline and they persist. Brand and model are taken from the search's filters
+  (the parsers don't split them out of the listing title).
+- **Settings** — choose the rater model, see which API keys are configured, inspect the current
+  session state, and start a fresh session.
+
+## Development
 
 ```bash
-uv run pytest
+uv run pytest                                  # tests
+uv run ruff check . && uv run ruff format .    # lint + format
 ```
 
-## code style
+Conventions: 100-char lines, Python 3.12 target, lowercase comments, and no comments that merely
+restate the code.
 
-- ruff (line length 100, py312 target) — `uv run ruff check . && uv run ruff format .`
-- comments lowercase, no trailing period
-- no comments explaining *what* the code does — only *why* when non-obvious
+## Scope & roadmap
 
-## layout
-
+- Single local user — no auth, no multi-tenancy.
+- SQLite only; the SQLAlchemy URL can be pointed at Postgres later if it ever goes multi-user.
+- No external valuation API — the rater works off the scraped batch as its own market context.
+- Cloudflare may throttle aggressive runs; proxy support is a possible follow-up.
+- The intent classifier and chat assistant currently run on Claude Haiku regardless of the selected
+  rater model — making them provider-agnostic is a future improvement.
 ```
-src/valor_auto_agent/
-  app.py                # streamlit entrypoint
-  config.py             # pydantic-settings env loader
-  cli.py                # uv script entrypoint
-  graph/                # langgraph wiring + nodes + state
-  subagents/rater.py    # claude rater sub-agent
-  tools/crawler/        # patchright + per-site builders/parsers
-  db/                   # sqlalchemy models, session, md export
-  prompts/rater.md      # cached rater system prompt
-```
-
-## scope notes
-
-- single local user, no auth, no multi-tenant
-- sqlite only (no postgres)
-- no external valuation api (rater works off the scraped batch as market context)
-- cloudflare may rate-limit aggressive runs; proxy support is a follow-up, not in the initial commit

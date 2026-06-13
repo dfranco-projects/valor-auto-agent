@@ -20,6 +20,12 @@ class Settings(BaseSettings):
 def load() -> Settings:
     import os
 
+    from dotenv import load_dotenv
+
+    # the api keys are unprefixed (ANTHROPIC_API_KEY/GEMINI_API_KEY), so pull .env into the
+    # environment before the getenv fallbacks below — VALOR_-prefixed fields are read by pydantic
+    load_dotenv()
+
     s = Settings()
     if not s.anthropic_api_key:
         s.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", "")

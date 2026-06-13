@@ -17,6 +17,9 @@ dependencies = [
     "sqlalchemy>=2.0.36",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
     "streamlit>=1.41.0",
     "python-dotenv>=1.0.1",
     "selectolax>=0.3.27",
@@ -43,7 +46,10 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+# B008: FastAPI relies on Depends()/Query() in argument defaults by design
+ignore = ["B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]

@@ -116,7 +116,8 @@ async def rate(state: dict) -> dict:
     listings = [Listing(**li) for li in raw]
     if not listings:
         return {"ratings": []}
-    rated = await rate_batch(listings)
+    model = state.get("rater_model") or load().rater_model
+    rated = await rate_batch(listings, model=model)
     search_id = state.get("search_id")
     if search_id:
         with session() as s:
@@ -132,7 +133,7 @@ async def rate(state: dict) -> dict:
                         listing_id=dbl.id,
                         score=float(r["score"]),
                         rationale=str(r.get("rationale", "")),
-                        model=load().rater_model,
+                        model=model,
                     )
                 )
             search = s.get(Search, search_id)

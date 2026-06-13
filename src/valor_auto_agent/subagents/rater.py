@@ -52,10 +52,10 @@ def _parse(raw: str) -> list[dict]:
     return json.loads(s)
 
 
-async def _rate_anthropic(settings: Settings, user_msg: str) -> str:
+async def _rate_anthropic(settings: Settings, model: str, user_msg: str) -> str:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     resp = await client.messages.create(
-        model=settings.rater_model,
+        model=model,
         max_tokens=4096,
         system=[
             {
@@ -81,10 +81,10 @@ async def _rate_anthropic(settings: Settings, user_msg: str) -> str:
     return "".join(b.text for b in resp.content if hasattr(b, "text"))
 
 
-async def _rate_gemini(settings: Settings, user_msg: str) -> str:
+async def _rate_gemini(settings: Settings, model: str, user_msg: str) -> str:
     client = genai.Client(api_key=settings.gemini_api_key)
     resp = await client.aio.models.generate_content(
-        model=settings.rater_model,
+        model=model,
         contents=user_msg,
         config=types.GenerateContentConfig(
             system_instruction=_system_prompt(),
@@ -94,13 +94,14 @@ async def _rate_gemini(settings: Settings, user_msg: str) -> str:
     return resp.text or ""
 
 
-async def rate_batch(listings: list[Listing]) -> list[dict]:
+async def rate_batch(listings: list[Listing], model: str | None = None) -> list[dict]:
     if not listings:
         return []
     settings = load()
+    model = model or settings.rater_model
     user_msg = render_user_message(listings)
-    if settings.rater_model.startswith("gemini"):
-        text = await _rate_gemini(settings, user_msg)
+    if model.startswith("gemini"):
+        text = await _rate_gemini(settings, model, user_msg)
     else:
-        text = await _rate_anthropic(settings, user_msg)
+        text = await _rate_anthropic(settings, model, user_msg)
     return _parse(text)
