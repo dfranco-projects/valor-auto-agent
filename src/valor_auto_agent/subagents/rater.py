@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 
 from anthropic import AsyncAnthropic
+from google import genai
+from google.genai import types
 
-from valor_auto_agent.config import load
+from valor_auto_agent.config import Settings, load
 from valor_auto_agent.tools.crawler.schemas import Listing
 
 _PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "rater.md"
@@ -50,12 +52,8 @@ def _parse(raw: str) -> list[dict]:
     return json.loads(s)
 
 
-async def rate_batch(listings: list[Listing]) -> list[dict]:
-    if not listings:
-        return []
-    settings = load()
+async def _rate_anthropic(settings: Settings, user_msg: str) -> str:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    user_msg = render_user_message(listings)
     resp = await client.messages.create(
         model=settings.rater_model,
         max_tokens=4096,
@@ -80,5 +78,29 @@ async def rate_batch(listings: list[Listing]) -> list[dict]:
             {"role": "assistant", "content": "["},
         ],
     )
-    text = "".join(b.text for b in resp.content if hasattr(b, "text"))
+    return "".join(b.text for b in resp.content if hasattr(b, "text"))
+
+
+async def _rate_gemini(settings: Settings, user_msg: str) -> str:
+    client = genai.Client(api_key=settings.gemini_api_key)
+    resp = await client.aio.models.generate_content(
+        model=settings.rater_model,
+        contents=user_msg,
+        config=types.GenerateContentConfig(
+            system_instruction=_system_prompt(),
+            response_mime_type="application/json",
+        ),
+    )
+    return resp.text or ""
+
+
+async def rate_batch(listings: list[Listing]) -> list[dict]:
+    if not listings:
+        return []
+    settings = load()
+    user_msg = render_user_message(listings)
+    if settings.rater_model.startswith("gemini"):
+        text = await _rate_gemini(settings, user_msg)
+    else:
+        text = await _rate_anthropic(settings, user_msg)
     return _parse(text)
