@@ -82,17 +82,35 @@ Settings load from `.env`. Provider keys are read directly; everything else is `
 
 ## Running
 
-The backend and frontend are two processes. In separate terminals:
+The fastest path is `make`, which starts the backend and frontend together (Ctrl-C stops both):
 
 ```bash
-# 1) backend (keep to a single worker — one shared graph + SQLite checkpoint connection)
-uv run uvicorn backend.main:app --app-dir src
-
-# 2) frontend
-uv run streamlit run src/frontend/app.py
+make run          # both processes locally
+make run-docker   # build the image and run both in one container
 ```
 
 Then open the Streamlit URL (default <http://localhost:8501>).
+
+Prefer to run them by hand? They are two processes — in separate terminals:
+
+```bash
+# backend (keep to a single worker — one shared graph + SQLite checkpoint connection)
+uv run uvicorn backend.main:app --app-dir src
+
+# frontend
+uv run streamlit run src/frontend/app.py
+```
+
+### Docker
+
+The image runs both processes and bundles the patched Chromium needed for scraping:
+
+```bash
+make run-docker
+# or by hand:
+docker build -t valor-auto-agent .
+docker run --rm -it --env-file .env -p 8000:8000 -p 8501:8501 valor-auto-agent
+```
 
 ## Using the app
 
