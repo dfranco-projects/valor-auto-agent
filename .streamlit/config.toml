@@ -3,17 +3,9 @@ gatherUsageStats = false
 
 [theme]
 base = "light"
-primaryColor = "#2563eb"
+primaryColor = "#3a5a8c"
+backgroundColor = "#dce0e8"
+secondaryBackgroundColor = "#cdd2dc"
+textColor = "#1e2433"
 font = "sans-serif"
-baseRadius = "0.6rem"
 baseFontSize = 17
-
-[theme.light]
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f4f5f7"
-textColor = "#1f2933"
-
-[theme.dark]
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#191c24"
-textColor = "#e8eaed"

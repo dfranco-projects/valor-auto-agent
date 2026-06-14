@@ -8,16 +8,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st  # noqa: E402
 
-from frontend import sidebar, theme  # noqa: E402
+from frontend import sidebar  # noqa: E402
 from frontend.state import init_session_state  # noqa: E402
-from frontend.views import chat, evaluations, settings  # noqa: E402
+from frontend.views import chat, evaluations  # noqa: E402
 
 st.set_page_config(page_title="Valor-Auto", layout="wide")
 
 st.markdown(
     """
     <style>
-      #MainMenu, footer {visibility: hidden;}
+      footer {visibility: hidden;}
       section[data-testid="stSidebar"] {width: 300px !important;}
       /* make the sidebar a full-height flex column so the nav can pin to the bottom */
       [data-testid="stSidebarContent"] {
@@ -36,20 +36,16 @@ st.markdown(
 )
 
 init_session_state()
-theme.apply(st.session_state.get("theme"))
 
 pages = {
-    "chat": st.Page(
-        chat.render, title="Chat", icon=":material/chat:", url_path="chat", default=True
-    ),
+    # the default page is always served at "/", so it must NOT set url_path
+    # (otherwise its page_link points at /chat and 404s)
+    "chat": st.Page(chat.render, title="Chat", icon=":material/chat:", default=True),
     "evaluations": st.Page(
         evaluations.render,
         title="Evaluations",
         icon=":material/directions_car:",
         url_path="evaluations",
-    ),
-    "settings": st.Page(
-        settings.render, title="Settings", icon=":material/settings:", url_path="settings"
     ),
 }
 
