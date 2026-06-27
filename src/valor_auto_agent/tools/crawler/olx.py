@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from urllib.parse import quote_plus
 
@@ -11,6 +12,7 @@ from valor_auto_agent.tools.crawler.base import fetch_html, with_browser
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
 
 BASE = "https://www.olx.pt"
+log = logging.getLogger(__name__)
 
 
 def build_url(filters: Filters, page: int = 1) -> str:
@@ -115,10 +117,13 @@ async def search(filters: Filters, max_pages: int | None = None) -> list[Listing
     async with with_browser() as ctx:
         for page in range(1, max_pages + 1):
             url = build_url(filters, page=page)
+            log.info("olx fetch page %d %s", page, url)
             html = await fetch_html(ctx, url)
             if not html:
+                log.warning("olx page %d returned no html (blocked or timed out)", page)
                 break
             cards = parse_cards(html)
+            log.info("olx page %d -> %d cards", page, len(cards))
             if not cards:
                 break
             for c in cards:

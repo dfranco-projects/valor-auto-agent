@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,6 +18,8 @@ from valor_auto_agent.db.session import session
 from valor_auto_agent.subagents.rater import rate_batch
 from valor_auto_agent.tools.crawler import olx, standvirtual
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
+
+log = logging.getLogger(__name__)
 
 CLASSIFY_SYS = (
     "you classify the latest user message. reply with exactly one word: scrape or chat. "
@@ -70,14 +73,18 @@ async def scrape(state: dict) -> dict:
         s.flush()
         search_id = search.id
 
+    log.info("scrape start filters=%s", filters.model_dump(exclude_none=True))
     olx_task = olx.search(filters)
     sv_task = standvirtual.search(filters)
     results = await asyncio.gather(olx_task, sv_task, return_exceptions=True)
     listings: list[Listing] = []
-    for r in results:
+    for name, r in zip(("olx", "standvirtual"), results, strict=True):
         if isinstance(r, Exception):
+            log.warning("scrape %s failed: %r", name, r)
             continue
+        log.info("scrape %s -> %d listings", name, len(r))
         listings.extend(r)
+    log.info("scrape total %d listings", len(listings))
 
     with session() as s:
         for li in listings:

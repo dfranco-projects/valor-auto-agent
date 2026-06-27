@@ -23,4 +23,5 @@ def test_standvirtual_url_contains_filters():
     assert url.startswith("https://www.standvirtual.com/carros/audi/a4")
     assert "filter_float_price%3Ato%5D=25000" in url
     assert "filter_float_first_registration_year%3Afrom%5D=2018" in url
-    assert "filter_enum_fuel_type%5D%5B0%5D=gasolina" in url
+    # standvirtual uses english fuel slugs, so our "gasolina" maps to "petrol"
+    assert "filter_enum_fuel_type%5D%5B0%5D=petrol" in url
