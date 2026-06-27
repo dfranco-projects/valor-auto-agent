@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from backend.routers import config, evaluations, saved, search, sessions
@@ -65,6 +67,14 @@ def create_app() -> FastAPI:
         saved.router,
     ):
         app.include_router(r)
+
+    # the ui lives on the frontend (default :3000); send anyone landing on the api root there
+    web_url = os.getenv("VALOR_WEB_URL", "http://localhost:3000")
+
+    @app.get("/", include_in_schema=False)
+    def _root() -> RedirectResponse:
+        return RedirectResponse(web_url)
+
     return app
 
 

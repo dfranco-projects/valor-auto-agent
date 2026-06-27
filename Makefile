@@ -9,7 +9,8 @@ web-install:
 
 # run backend + the next.js frontend (http://localhost:3000); ctrl-c stops both
 run:
-	@uv run uvicorn backend.main:app --app-dir src --port 8000 & \
+	@echo "\n>>> open the app at http://localhost:3000  (the API is on :8000)\n"; \
+	uv run uvicorn backend.main:app --app-dir src --port 8000 & \
 	backend_pid=$$!; \
 	trap 'kill $$backend_pid 2>/dev/null' EXIT; \
 	cd frontend-web && npm run dev
