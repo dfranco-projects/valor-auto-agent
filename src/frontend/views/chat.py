@@ -125,7 +125,8 @@ def _apply(res: dict) -> None:
     if res.get("status") == "need_filters":
         st.session_state.pending_filters = True
         st.session_state.filter_schema = res.get("filter_schema")
-        st.session_state.last_filters = None  # fresh form for a new search
+        # seed the form from the agent's nl extraction + remembered prefs (pre-filled to confirm)
+        st.session_state.last_filters = res.get("prefill") or None
         st.session_state.history.append(("assistant", res.get("reply") or "filters needed"))
     else:
         st.session_state.pending_filters = False
@@ -140,7 +141,7 @@ def _idx(options: list[str], value, default: int = 0) -> int:
 
 def _filter_form() -> None:
     prev = st.session_state.get("last_filters") or {}
-    st.info("Fill the form below to start the scrape")
+    st.info("Confirm or adjust the pre-filled filters below, then scrape")
     with st.form("filters"):
         c1, c2 = st.columns(2)
         with c1:

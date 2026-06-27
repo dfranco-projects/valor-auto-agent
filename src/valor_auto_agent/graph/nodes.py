@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from anthropic import AsyncAnthropic
+from google.genai import types
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import interrupt
 
-from valor_auto_agent.config import load
+from valor_auto_agent.config import Settings, load
 from valor_auto_agent.db.exports import snapshot_search
 from valor_auto_agent.db.models import Listing as DbListing
 from valor_auto_agent.db.models import Rating as DbRating
 from valor_auto_agent.db.models import Search
 from valor_auto_agent.db.session import session
-from valor_auto_agent.subagents.rater import rate_batch
+from valor_auto_agent.memory import recall_defaults, remember
+from valor_auto_agent.subagents.rater import _gemini_client, rate_batch
 from valor_auto_agent.tools.crawler import olx, standvirtual
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
 
@@ -53,9 +56,123 @@ async def decide(state: dict) -> dict:
     return {"should_scrape": reply.startswith("scrape")}
 
 
+EXTRACT_SYS = (
+    "extract used-car search filters from the user's message. return only a json object with "
+    "the keys you can infer, omit the rest. keys: brand (lowercase slug e.g. bmw, audi, "
+    "mercedes-benz, volkswagen), model (lowercase e.g. 320d, golf), year_min, year_max, "
+    "price_min, price_max (eur ints), km_max (int), fuel (one of "
+    "gasolina,diesel,hibrido,eletrico,gpl), transmission (one of manual,automatica), "
+    "location (portuguese city). examples: 'under 10k'/'até 10000€' => price_max=10000; "
+    "'from 2015'/'2015+' => year_min=2015; 'auto' => transmission=automatica. "
+    "do not invent values that are not implied by the message."
+)
+
+_FILTER_KEYS = tuple(Filters.model_fields)
+
+
+async def _extract_gemini(settings: Settings, text: str) -> str:
+    client = _gemini_client(settings)
+    resp = await client.aio.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=text,
+        config=types.GenerateContentConfig(
+            system_instruction=EXTRACT_SYS,
+            response_mime_type="application/json",
+        ),
+    )
+    return resp.text or ""
+
+
+async def _extract_anthropic(settings: Settings, text: str) -> str:
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    resp = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=300,
+        system=EXTRACT_SYS,
+        messages=[
+            {"role": "user", "content": text},
+            {"role": "assistant", "content": "{"},
+        ],
+    )
+    return "{" + "".join(b.text for b in resp.content if hasattr(b, "text"))
+
+
+async def _extract(text: str, model: str | None) -> dict:
+    settings = load()
+    if not text.strip():
+        return {}
+    model = model or settings.rater_model
+    gemini_ok = settings.gemini_api_key or settings.google_genai_use_vertexai
+    try:
+        if model.startswith("gemini") and gemini_ok:
+            raw = await _extract_gemini(settings, text)
+        elif settings.anthropic_api_key:
+            raw = await _extract_anthropic(settings, text)
+        elif gemini_ok:
+            raw = await _extract_gemini(settings, text)
+        else:
+            return {}
+        data = json.loads(raw) if raw.strip() else {}
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        log.warning("extract_filters failed: %r", e)
+        return {}
+
+
+def _coerce_filters(data: dict) -> dict:
+    candidate = {k: data[k] for k in _FILTER_KEYS if data.get(k) not in (None, "")}
+    try:
+        Filters(**candidate)
+        return candidate
+    except Exception:
+        # drop only the fields that fail validation, keep the rest
+        clean: dict = {}
+        for k, v in candidate.items():
+            try:
+                Filters(**{k: v})
+                clean[k] = v
+            except Exception:
+                continue
+        return clean
+
+
+def _humanize(d: dict) -> str:
+    return ", ".join(f"{k}={v}" for k, v in d.items())
+
+
+def _prefill_note(extracted: dict, recalled: dict, prefill: dict) -> str:
+    if not prefill:
+        return "i couldn't read specific filters — fill the form to start the scrape."
+    parts = []
+    read = {k: v for k, v in prefill.items() if k in extracted}
+    if read:
+        parts.append("read: " + _humanize(read))
+    from_mem = {k: v for k, v in prefill.items() if k not in extracted and k in recalled}
+    if from_mem:
+        parts.append("from your usual prefs: " + _humanize(from_mem))
+    parts.append("confirm or adjust below.")
+    return " · ".join(parts)
+
+
+async def extract_filters(state: dict) -> dict:
+    text = await _last_user_text(state)
+    extracted = _coerce_filters(await _extract(text, state.get("rater_model")))
+    recalled = recall_defaults()
+    prefill = _coerce_filters({**recalled, **extracted})  # nl wins over remembered prefs
+    return {"filters_prefill": prefill, "prefill_note": _prefill_note(extracted, recalled, prefill)}
+
+
 async def collect_filters(state: dict) -> dict:
-    raw = interrupt({"need": "filters", "schema": Filters.model_json_schema()})
+    raw = interrupt(
+        {
+            "need": "filters",
+            "schema": Filters.model_json_schema(),
+            "prefill": state.get("filters_prefill") or {},
+            "note": state.get("prefill_note") or "",
+        }
+    )
     if isinstance(raw, dict):
+        remember(raw)
         return {"filters": raw}
     return {"filters": {}}
 
@@ -213,4 +330,4 @@ def _serialize_for_state(li: Listing) -> dict:
 
 
 def route_decide(state: dict) -> str:
-    return "collect_filters" if state.get("should_scrape") else "chat"
+    return "extract_filters" if state.get("should_scrape") else "chat"

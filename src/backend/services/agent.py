@@ -15,9 +15,11 @@ async def _result(graph, thread_id: str) -> dict:
     if state.next and "collect_filters" in state.next:
         return {
             "status": "need_filters",
-            "reply": "filters needed — fill the form to start the scrape",
+            "reply": state.values.get("prefill_note")
+            or "filters needed — confirm to start the scrape",
             "top": [],
             "filter_schema": Filters.model_json_schema(),
+            "prefill": state.values.get("filters_prefill") or {},
         }
     values = state.values
     return {

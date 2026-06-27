@@ -12,6 +12,7 @@ from valor_auto_agent.graph.nodes import (
     chat,
     collect_filters,
     decide,
+    extract_filters,
     present,
     rate,
     route_decide,
@@ -23,6 +24,7 @@ from valor_auto_agent.graph.state import AgentState
 def _stategraph() -> StateGraph:
     g = StateGraph(AgentState)
     g.add_node("decide", decide)
+    g.add_node("extract_filters", extract_filters)
     g.add_node("collect_filters", collect_filters)
     g.add_node("scrape", scrape)
     g.add_node("rate", rate)
@@ -31,8 +33,9 @@ def _stategraph() -> StateGraph:
 
     g.add_edge(START, "decide")
     g.add_conditional_edges(
-        "decide", route_decide, {"collect_filters": "collect_filters", "chat": "chat"}
+        "decide", route_decide, {"extract_filters": "extract_filters", "chat": "chat"}
     )
+    g.add_edge("extract_filters", "collect_filters")
     g.add_edge("collect_filters", "scrape")
     g.add_edge("scrape", "rate")
     g.add_edge("rate", "present")

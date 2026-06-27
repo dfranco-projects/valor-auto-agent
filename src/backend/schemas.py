@@ -21,6 +21,7 @@ class SearchResponse(BaseModel):
     reply: str | None = None
     top: list[dict] = []
     filter_schema: dict | None = None
+    prefill: dict = {}
 
 
 class EvaluationOut(BaseModel):

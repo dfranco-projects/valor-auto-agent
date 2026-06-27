@@ -95,6 +95,16 @@ class UiPref(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
 
 
+class UserMemory(Base):
+    # long-term per-user search preferences (last-value-wins per filter field), used to
+    # pre-fill the filter form for gaps the natural-language query didn't specify
+    __tablename__ = "user_memory"
+
+    user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    prefs_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
 class ChatSession(Base):
     # one row per chat thread, titled by its first user message, for the sidebar history
     __tablename__ = "chat_session"
