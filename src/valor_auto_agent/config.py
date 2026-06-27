@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     max_pages: int = 3
     max_detail_concurrency: int = 3
     snapshots_dir: Path = Path("data/snapshots")
-    rater_model: str = "claude-sonnet-4-6"
+    rater_model: str = "gemini-2.5-flash"
 
 
 def load() -> Settings:
