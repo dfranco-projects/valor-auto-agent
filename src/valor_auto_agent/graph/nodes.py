@@ -232,7 +232,9 @@ async def rate(state: dict) -> dict:
     if not listings:
         return {"ratings": []}
     model = state.get("rater_model") or load().rater_model
+    log.info("rate start: %d listings model=%s", len(listings), model)
     rated = await rate_batch(listings, model=model)
+    log.info("rate done: %d ratings", len(rated))
     search_id = state.get("search_id")
     if search_id:
         with session() as s:
@@ -281,13 +283,27 @@ async def present(state: dict) -> dict:
                 "year": li.get("year"),
                 "km": li.get("km"),
                 "source": li.get("source"),
+                "external_id": li.get("external_id"),
                 "url": li.get("url"),
                 "also_on": dups.get(key, []),
             }
         )
     enriched.sort(key=lambda x: x["score"], reverse=True)
     top = enriched[:10]
-    summary = _format_top(top)
+    log.info(
+        "present: %d listings, %d ratings -> %d enriched, %d dup groups, top=%d",
+        len(raw_listings),
+        len(ratings),
+        len(enriched),
+        len(dup_idx),
+        len(top),
+    )
+    # keep the chat reply short — the top picks render as cards in the ui, don't dump them as text
+    summary = (
+        f"found {len(enriched)} matches — here are the top {len(top)}:"
+        if top
+        else "no listings matched the filters"
+    )
     return {"top": top, "reply": summary, "messages": [AIMessage(content=summary)]}
 
 
@@ -306,19 +322,6 @@ async def chat(state: dict) -> dict:
     )
     out = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
     return {"reply": out, "messages": [AIMessage(content=out)]}
-
-
-def _format_top(top: list[dict]) -> str:
-    if not top:
-        return "no listings matched the filters"
-    lines = ["here are the top picks:"]
-    for i, t in enumerate(top, 1):
-        price = f"{t['price_eur']}€" if t.get("price_eur") else "n/a"
-        lines.append(
-            f"{i}. [{t['score']:.1f}] {t['title']} — {price} · {t.get('year') or ''} · "
-            f"{t.get('km') or ''}km · {t['source']} — {t['url']}"
-        )
-    return "\n".join(lines)
 
 
 def _serialize_for_state(li: Listing) -> dict:

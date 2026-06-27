@@ -1,6 +1,10 @@
-import { SearchResult } from "@/lib/api";
+"use client";
+
+import { useState } from "react";
+import { api, SearchResult } from "@/lib/api";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 
 export function ResultCard({
   rank,
@@ -14,6 +18,23 @@ export function ResultCard({
   onToggle?: () => void;
 }) {
   const price = r.price_eur ? `${r.price_eur.toLocaleString("pt-PT")} €` : "n/a";
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!r.external_id) return;
+    setSaving(true);
+    try {
+      // "favourite" == shortlist in the evaluations store, keyed by (source, external_id)
+      await api.patchDecision(r.source, r.external_id, saved ? null : "shortlist", "");
+      setSaved((s) => !s);
+    } catch {
+      /* surfaced by the chat error path on the next action */
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Card className="flex gap-3">
       {onToggle && (
@@ -35,7 +56,7 @@ export function ResultCard({
             href={r.url}
             target="_blank"
             rel="noreferrer"
-            className="truncate font-medium hover:text-primary"
+            className="truncate font-medium text-primary hover:underline"
           >
             {r.title ?? "(untitled)"}
           </a>
@@ -52,6 +73,21 @@ export function ResultCard({
           ))}
         </div>
         {r.rationale && <p className="mt-2 text-sm text-muted">{r.rationale}</p>}
+        <div className="mt-2 flex items-center gap-3">
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            Open ad ↗
+          </a>
+          {r.external_id && (
+            <Button size="sm" variant={saved ? "outline" : "ghost"} onClick={save} disabled={saving}>
+              {saved ? "♥ Saved" : "♡ Save"}
+            </Button>
+          )}
+        </div>
       </div>
     </Card>
   );

@@ -12,6 +12,7 @@ export interface SearchResult {
   year: number | null;
   km: number | null;
   source: string;
+  external_id?: string;
   url: string;
   also_on?: { source: string; url: string }[];
 }
