@@ -19,8 +19,6 @@ for _ in $(seq 1 120); do
     sleep 0.5
 done
 
-# frontend in the foreground keeps the container alive
-uv run --no-sync streamlit run src/frontend/app.py \
-    --server.address 0.0.0.0 \
-    --server.port 8501 \
-    --server.headless true
+# the next.js standalone server in the foreground keeps the container alive
+# (HOSTNAME=0.0.0.0 and PORT=8501 are set in the image env)
+exec node frontend-web/server.js
