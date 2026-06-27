@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import statistics
 from pathlib import Path
 
@@ -134,25 +135,51 @@ async def _rate_gemini(settings: Settings, model: str, user_msg: str) -> str:
     return resp.text or ""
 
 
-# rate in small concurrent chunks: one giant call is slow, risks output-token truncation,
-# and (with no provider-side timeout) can hang the whole request.
-_CHUNK = 25
+# rate in chunks, but cap concurrency and retry on rate-limit/overload: one giant call is slow
+# and risks truncation, while firing every chunk at once trips the provider's per-minute quota.
+_CHUNK = 40
 _TIMEOUT_S = 90
+_CONCURRENCY = 3
+_MAX_ATTEMPTS = 2
+_RETRY_RX = re.compile(r"retry in ([\d.]+)s")
+
+
+def _retryable(e: Exception) -> bool:
+    s = str(e)
+    return any(k in s for k in ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE"))
+
+
+def _retry_after(e: Exception, attempt: int) -> float:
+    m = _RETRY_RX.search(str(e))
+    return min(float(m.group(1)) + 1 if m else 5.0 * (attempt + 1), 30.0)
+
+
+async def _call_model(settings: Settings, model: str, user_msg: str) -> str:
+    if model.startswith("gemini"):
+        return await asyncio.wait_for(_rate_gemini(settings, model, user_msg), _TIMEOUT_S)
+    return await asyncio.wait_for(_rate_anthropic(settings, model, user_msg), _TIMEOUT_S)
 
 
 async def _rate_chunk(
-    settings: Settings, model: str, chunk: list[Listing], context: str
+    settings: Settings, model: str, chunk: list[Listing], context: str, sem: asyncio.Semaphore
 ) -> list[dict]:
     user_msg = render_user_message(chunk, context)
-    try:
-        if model.startswith("gemini"):
-            text = await asyncio.wait_for(_rate_gemini(settings, model, user_msg), _TIMEOUT_S)
-        else:
-            text = await asyncio.wait_for(_rate_anthropic(settings, model, user_msg), _TIMEOUT_S)
-        return _parse(text)
-    except Exception:
-        log.exception("rate chunk failed (%d listings) — skipping", len(chunk))
-        return []
+    async with sem:
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                return _parse(await _call_model(settings, model, user_msg))
+            except Exception as e:
+                if _retryable(e) and attempt < _MAX_ATTEMPTS - 1:
+                    delay = _retry_after(e, attempt)
+                    log.warning(
+                        "rate chunk (%d listings) %s — retry %d/%d in %.0fs",
+                        len(chunk), type(e).__name__, attempt + 1, _MAX_ATTEMPTS - 1, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                log.warning("rate chunk failed (%d listings) — skipping: %s", len(chunk), e)
+                return []
+    return []
 
 
 async def rate_batch(listings: list[Listing], model: str | None = None) -> list[dict]:
@@ -162,8 +189,11 @@ async def rate_batch(listings: list[Listing], model: str | None = None) -> list[
     model = model or settings.rater_model
     context = market_context(listings)  # computed over the full batch, shared by every chunk
     chunks = [listings[i : i + _CHUNK] for i in range(0, len(listings), _CHUNK)]
+    sem = asyncio.Semaphore(_CONCURRENCY)
     log.info("rate_batch start: %d listings via %s in %d chunks", len(listings), model, len(chunks))
-    results = await asyncio.gather(*(_rate_chunk(settings, model, c, context) for c in chunks))
+    results = await asyncio.gather(
+        *(_rate_chunk(settings, model, c, context, sem) for c in chunks)
+    )
     rated = [r for chunk in results for r in chunk]
     log.info("rate_batch done: parsed %d ratings", len(rated))
     return rated
