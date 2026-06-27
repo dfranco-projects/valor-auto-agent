@@ -20,6 +20,7 @@ from valor_auto_agent.db.session import session
 from valor_auto_agent.memory import recall_defaults, remember
 from valor_auto_agent.subagents.rater import _gemini_client, rate_batch
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
+from valor_auto_agent.tools.dedupe import also_on
 
 log = logging.getLogger(__name__)
 
@@ -258,6 +259,11 @@ async def rate(state: dict) -> dict:
 
 
 async def present(state: dict) -> dict:
+    raw_listings = [Listing(**li) for li in state.get("listings", [])]
+    dup_idx = also_on(raw_listings)
+    dups = {
+        (raw_listings[i].source, raw_listings[i].external_id): v for i, v in dup_idx.items()
+    }
     listings = {(li["source"], li["external_id"]): li for li in state.get("listings", [])}
     ratings = state.get("ratings") or []
     enriched: list[dict[str, Any]] = []
@@ -276,6 +282,7 @@ async def present(state: dict) -> dict:
                 "km": li.get("km"),
                 "source": li.get("source"),
                 "url": li.get("url"),
+                "also_on": dups.get(key, []),
             }
         )
     enriched.sort(key=lambda x: x["score"], reverse=True)

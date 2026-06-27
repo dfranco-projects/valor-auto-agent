@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/sidebar";
 import { FilterForm } from "@/components/filter-form";
 import { ResultCard } from "@/components/result-card";
+import { CompareTable } from "@/components/compare-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -36,7 +37,16 @@ export default function Page() {
   const [raterModel, setRaterModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const toggleSelect = (i: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
 
   const push = (role: Role, content: string) =>
     setHistory((h) => [...h, { role, content }]);
@@ -53,6 +63,7 @@ export default function Page() {
     setThreadId(s.thread_id);
     setHistory(s.history.map(([role, content]) => ({ role, content })));
     setTop(s.top ?? []);
+    setSelected(new Set());
     setPendingFilters(false);
     if (s.rater_model) setRaterModel(s.rater_model);
   }, []);
@@ -84,7 +95,10 @@ export default function Page() {
     } else {
       setPendingFilters(false);
       push("assistant", res.reply ?? "done");
-      if (res.top?.length) setTop(res.top);
+      if (res.top?.length) {
+        setTop(res.top);
+        setSelected(new Set());
+      }
     }
   };
 
@@ -178,13 +192,31 @@ export default function Page() {
               <FilterForm prefill={prefill} note={formNote} busy={busy} onSubmit={resume} />
             )}
 
+            {selected.size >= 2 && (
+              <CompareTable
+                items={[...selected].sort((a, b) => a - b).map((i) => top[i])}
+                onClear={() => setSelected(new Set())}
+              />
+            )}
+
             {top.length > 0 && (
               <section className="space-y-2">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
                   Top picks
+                  {selected.size === 1 && (
+                    <span className="ml-2 font-normal normal-case text-muted">
+                      select one more to compare
+                    </span>
+                  )}
                 </h2>
                 {top.map((r, i) => (
-                  <ResultCard key={`${r.source}-${i}`} rank={i + 1} r={r} />
+                  <ResultCard
+                    key={`${r.source}-${i}`}
+                    rank={i + 1}
+                    r={r}
+                    selected={selected.has(i)}
+                    onToggle={() => toggleSelect(i)}
+                  />
                 ))}
               </section>
             )}

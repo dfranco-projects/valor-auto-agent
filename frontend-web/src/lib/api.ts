@@ -13,6 +13,7 @@ export interface SearchResult {
   km: number | null;
   source: string;
   url: string;
+  also_on?: { source: string; url: string }[];
 }
 
 export interface SearchResponse {
