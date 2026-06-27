@@ -81,8 +81,18 @@ async def _rate_anthropic(settings: Settings, model: str, user_msg: str) -> str:
     return "".join(b.text for b in resp.content if hasattr(b, "text"))
 
 
+def _gemini_client(settings: Settings) -> genai.Client:
+    if settings.google_genai_use_vertexai:
+        return genai.Client(
+            vertexai=True,
+            project=settings.google_cloud_project or None,
+            location=settings.google_cloud_location or None,
+        )
+    return genai.Client(api_key=settings.gemini_api_key)
+
+
 async def _rate_gemini(settings: Settings, model: str, user_msg: str) -> str:
-    client = genai.Client(api_key=settings.gemini_api_key)
+    client = _gemini_client(settings)
     resp = await client.aio.models.generate_content(
         model=model,
         contents=user_msg,
