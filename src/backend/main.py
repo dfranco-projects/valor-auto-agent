@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import sys
 from contextlib import asynccontextmanager
@@ -9,7 +11,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-from backend.routers import config, evaluations, search, sessions
+from backend.routers import config, evaluations, saved, search, sessions
+from backend.scheduler import run_scheduler
 from valor_auto_agent.config import load
 
 
@@ -37,7 +40,13 @@ async def lifespan(app: FastAPI):
         from valor_auto_agent.graph.builder import build_graph
 
         app.state.graph = build_graph(saver)
-        yield
+        scheduler = asyncio.create_task(run_scheduler())
+        try:
+            yield
+        finally:
+            scheduler.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await scheduler
 
 
 def create_app() -> FastAPI:
@@ -48,7 +57,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    for r in (search.router, evaluations.router, sessions.router, config.router):
+    for r in (
+        search.router,
+        evaluations.router,
+        sessions.router,
+        config.router,
+        saved.router,
+    ):
         app.include_router(r)
     return app
 

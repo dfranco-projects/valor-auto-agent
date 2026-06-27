@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -93,6 +102,49 @@ class UiPref(Base):
     active_thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     rater_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
+class SavedSearch(Base):
+    # a recurring search the scheduler re-runs on a cadence to surface new listings
+    __tablename__ = "saved_search"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(64), default="default")
+    name: Mapped[str] = mapped_column(String(128))
+    filters_json: Mapped[dict] = mapped_column(JSON)
+    cadence_minutes: Mapped[int] = mapped_column(Integer, default=360)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # "source:external_id" keys already alerted on, so a re-run only flags new listings
+    seen_ids_json: Mapped[list] = mapped_column(JSON, default=list)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+    alerts: Mapped[list[Alert]] = relationship(
+        back_populates="saved_search", cascade="all, delete-orphan"
+    )
+
+
+class Alert(Base):
+    # a new listing matched by a saved search since it was last run
+    __tablename__ = "alert"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    saved_search_id: Mapped[int] = mapped_column(
+        ForeignKey("saved_search.id", ondelete="CASCADE")
+    )
+    source: Mapped[str] = mapped_column(String(32))
+    external_id: Mapped[str] = mapped_column(String(128))
+    title: Mapped[str] = mapped_column(String(512))
+    price_eur: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    km: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    url: Mapped[str] = mapped_column(String(1024))
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rationale: Mapped[str] = mapped_column(String(2048), default="")
+    read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+    saved_search: Mapped[SavedSearch] = relationship(back_populates="alerts")
 
 
 class UserMemory(Base):

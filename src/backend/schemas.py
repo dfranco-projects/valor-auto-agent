@@ -74,3 +74,35 @@ class ConfigOut(BaseModel):
 
 class ModelPatch(BaseModel):
     rater_model: str
+
+
+class SavedSearchIn(BaseModel):
+    name: str
+    filters: dict = {}
+    cadence_minutes: int = 360
+
+
+class SavedSearchOut(BaseModel):
+    id: int
+    name: str
+    filters: dict
+    cadence_minutes: int
+    active: bool
+    last_run_at: str | None = None
+    new_count: int = 0
+
+
+class AlertOut(BaseModel):
+    id: int
+    saved_search_id: int
+    source: str
+    external_id: str
+    title: str
+    price_eur: int | None = None
+    year: int | None = None
+    km: int | None = None
+    url: str
+    score: float | None = None
+    rationale: str = ""
+    read: bool = False
+    created_at: str | None = None

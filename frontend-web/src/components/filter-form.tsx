@@ -16,11 +16,15 @@ export function FilterForm({
   note,
   busy,
   onSubmit,
+  submitLabel,
+  busyLabel,
 }: {
   prefill: Filters;
   note?: string;
   busy: boolean;
   onSubmit: (f: Filters) => void;
+  submitLabel?: string;
+  busyLabel?: string;
 }) {
   const p = prefill ?? {};
   const [v, setV] = useState({
@@ -109,7 +113,7 @@ export function FilterForm({
         </Field>
       </div>
       <Button className="mt-4 w-full" onClick={submit} disabled={busy}>
-        {busy ? "Scraping olx + standvirtual…" : "Scrape"}
+        {busy ? (busyLabel ?? "Scraping olx + standvirtual…") : (submitLabel ?? "Scrape")}
       </Button>
     </Card>
   );

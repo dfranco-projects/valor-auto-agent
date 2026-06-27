@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { SessionMeta } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { api, SessionMeta } from "@/lib/api";
 import { modelLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { Select } from "./ui/select";
+import { Badge } from "./ui/badge";
 
 export function Sidebar({
   sessions,
@@ -24,6 +26,20 @@ export function Sidebar({
   onSelect: (threadId: string) => void;
   onModelChange: (model: string) => void;
 }) {
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let active = true;
+    api
+      .getAlerts(true)
+      .then((a) => {
+        if (active) setUnread(a.length);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-low">
       <div className="p-3">
@@ -67,7 +83,18 @@ export function Sidebar({
         ))}
       </div>
 
-      <div className="border-t border-border p-3">
+      <div className="space-y-0.5 border-t border-border p-3">
+        <Link
+          href="/saved"
+          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-high"
+        >
+          Saved &amp; alerts
+          {unread > 0 && (
+            <Badge className="ml-auto border-primary/40 bg-primary-container text-on-primary-container">
+              {unread}
+            </Badge>
+          )}
+        </Link>
         <Link
           href="/evaluations"
           className="block rounded px-2 py-1.5 text-sm hover:bg-surface-high"

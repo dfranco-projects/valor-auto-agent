@@ -64,6 +64,32 @@ export interface Evaluation {
   url: string;
 }
 
+export interface SavedSearch {
+  id: number;
+  name: string;
+  filters: Filters;
+  cadence_minutes: number;
+  active: boolean;
+  last_run_at: string | null;
+  new_count: number;
+}
+
+export interface Alert {
+  id: number;
+  saved_search_id: number;
+  source: string;
+  external_id: string;
+  title: string;
+  price_eur: number | null;
+  year: number | null;
+  km: number | null;
+  url: string;
+  score: number | null;
+  rationale: string;
+  read: boolean;
+  created_at: string | null;
+}
+
 export class ApiError extends Error {}
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -116,4 +142,12 @@ export const api = {
       status,
       notes,
     }),
+  getSaved: () => call<SavedSearch[]>("GET", "/api/saved-searches"),
+  createSaved: (name: string, filters: Filters, cadence_minutes: number) =>
+    call<SavedSearch>("POST", "/api/saved-searches", { name, filters, cadence_minutes }),
+  deleteSaved: (id: number) => call<{ ok: boolean }>("DELETE", `/api/saved-searches/${id}`),
+  runSaved: (id: number) => call<Alert[]>("POST", `/api/saved-searches/${id}/run`),
+  getAlerts: (unreadOnly = false) =>
+    call<Alert[]>("GET", `/api/alerts${unreadOnly ? "?unread_only=true" : ""}`),
+  readAlert: (id: number) => call<{ ok: boolean }>("POST", `/api/alerts/${id}/read`),
 };

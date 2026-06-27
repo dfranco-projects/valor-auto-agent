@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import UTC, datetime
@@ -11,6 +10,7 @@ from google.genai import types
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import interrupt
 
+from valor_auto_agent import pipeline
 from valor_auto_agent.config import Settings, load
 from valor_auto_agent.db.exports import snapshot_search
 from valor_auto_agent.db.models import Listing as DbListing
@@ -19,7 +19,6 @@ from valor_auto_agent.db.models import Search
 from valor_auto_agent.db.session import session
 from valor_auto_agent.memory import recall_defaults, remember
 from valor_auto_agent.subagents.rater import _gemini_client, rate_batch
-from valor_auto_agent.tools.crawler import olx, standvirtual
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
 
 log = logging.getLogger(__name__)
@@ -191,16 +190,7 @@ async def scrape(state: dict) -> dict:
         search_id = search.id
 
     log.info("scrape start filters=%s", filters.model_dump(exclude_none=True))
-    olx_task = olx.search(filters)
-    sv_task = standvirtual.search(filters)
-    results = await asyncio.gather(olx_task, sv_task, return_exceptions=True)
-    listings: list[Listing] = []
-    for name, r in zip(("olx", "standvirtual"), results, strict=True):
-        if isinstance(r, Exception):
-            log.warning("scrape %s failed: %r", name, r)
-            continue
-        log.info("scrape %s -> %d listings", name, len(r))
-        listings.extend(r)
+    listings = await pipeline.crawl(filters)
     log.info("scrape total %d listings", len(listings))
 
     with session() as s:
