@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import statistics
 from pathlib import Path
 
 from anthropic import AsyncAnthropic
@@ -21,7 +22,25 @@ def _system_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def render_user_message(listings: list[Listing]) -> str:
+def market_context(listings: list[Listing]) -> str:
+    # a deterministic price benchmark computed once over the WHOLE search, so scores don't drift
+    # with batch composition or chunking — the model is told to use these, not re-estimate them.
+    prices = sorted(li.price_eur for li in listings if li.price_eur)
+    if not prices:
+        return ""
+
+    def pct(p: float) -> int:
+        return prices[min(len(prices) - 1, int(p * len(prices)))]
+
+    return (
+        f"fixed market reference for this search ({len(prices)} priced listings) — use these as "
+        f"the price benchmark, do NOT re-estimate the median from the batch below: "
+        f"median {int(statistics.median(prices))}€, p25 {pct(0.25)}€, "
+        f"p75 {pct(0.75)}€, min {prices[0]}€, max {prices[-1]}€."
+    )
+
+
+def render_user_message(listings: list[Listing], context: str = "") -> str:
     payload = [
         {
             "source": li.source,
@@ -37,8 +56,10 @@ def render_user_message(listings: list[Listing]) -> str:
         }
         for li in listings
     ]
+    head = f"{context}\n\n" if context else ""
     return (
-        "market batch (use as comparison context):\n\n"
+        head
+        + "market batch (use as comparison context):\n\n"
         + json.dumps(payload, ensure_ascii=False, indent=2)
         + "\n\nrate every listing above. return only the json array, same order"
     )
@@ -61,6 +82,7 @@ async def _rate_anthropic(settings: Settings, model: str, user_msg: str) -> str:
     resp = await client.messages.create(
         model=model,
         max_tokens=4096,
+        temperature=0.0,
         system=[
             {
                 "type": "text",
@@ -103,6 +125,8 @@ async def _rate_gemini(settings: Settings, model: str, user_msg: str) -> str:
         config=types.GenerateContentConfig(
             system_instruction=_system_prompt(),
             response_mime_type="application/json",
+            temperature=0.0,
+            seed=42,
         ),
     )
     finish = getattr((resp.candidates or [None])[0], "finish_reason", None)
@@ -116,8 +140,10 @@ _CHUNK = 25
 _TIMEOUT_S = 90
 
 
-async def _rate_chunk(settings: Settings, model: str, chunk: list[Listing]) -> list[dict]:
-    user_msg = render_user_message(chunk)
+async def _rate_chunk(
+    settings: Settings, model: str, chunk: list[Listing], context: str
+) -> list[dict]:
+    user_msg = render_user_message(chunk, context)
     try:
         if model.startswith("gemini"):
             text = await asyncio.wait_for(_rate_gemini(settings, model, user_msg), _TIMEOUT_S)
@@ -134,9 +160,10 @@ async def rate_batch(listings: list[Listing], model: str | None = None) -> list[
         return []
     settings = load()
     model = model or settings.rater_model
+    context = market_context(listings)  # computed over the full batch, shared by every chunk
     chunks = [listings[i : i + _CHUNK] for i in range(0, len(listings), _CHUNK)]
     log.info("rate_batch start: %d listings via %s in %d chunks", len(listings), model, len(chunks))
-    results = await asyncio.gather(*(_rate_chunk(settings, model, c) for c in chunks))
+    results = await asyncio.gather(*(_rate_chunk(settings, model, c, context) for c in chunks))
     rated = [r for chunk in results for r in chunk]
     log.info("rate_batch done: parsed %d ratings", len(rated))
     return rated

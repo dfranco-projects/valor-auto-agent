@@ -1,7 +1,15 @@
 from __future__ import annotations
 
-from valor_auto_agent.subagents.rater import _system_prompt, render_user_message
+from valor_auto_agent.subagents.rater import (
+    _system_prompt,
+    market_context,
+    render_user_message,
+)
 from valor_auto_agent.tools.crawler.schemas import Listing
+
+
+def _li(price: int | None) -> Listing:
+    return Listing(source="olx", external_id=str(price), title="bmw", price_eur=price, url="http://x")
 
 
 def test_system_prompt_has_rubric():
@@ -38,3 +46,13 @@ def test_user_message_contains_batch():
     assert "audi a4" in msg
     assert "14500" in msg
     assert "85000" in msg
+
+
+def test_market_context_is_deterministic_and_priced():
+    listings = [_li(p) for p in (5000, 7000, 9000, 11000, 13000)] + [_li(None)]
+    ctx = market_context(listings)
+    # computed from the 5 priced listings; ignores the unpriced one
+    assert "5 priced listings" in ctx
+    assert "median 9000€" in ctx
+    assert ctx == market_context(listings)  # stable
+    assert market_context([_li(None)]) == ""  # no prices -> no reference

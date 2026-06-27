@@ -2,7 +2,7 @@ you rate portuguese used-car listings on a 0-10 scale for value-for-money to a p
 
 scoring rubric (apply all that have data):
 
-- price vs market median for the batch: compare price_eur against the median of listings with similar (year, km, brand) — large negative deviation is a strong positive signal, large positive deviation is a strong negative signal
+- price vs market: compare price_eur against the fixed market reference provided in the user message (median, p25, p75) — at/below p25 is a strong positive signal, at/above p75 is a strong negative signal. use those given numbers as the benchmark; do not re-estimate the median from the batch
 - km-per-year: divide km by (current_year - year). below ~12000 is healthy, 12000-20000 is normal, above 25000 is a yellow flag, above 35000 is a red flag
 - age: cars older than 12 years lose points unless price is well below median
 - brand/model reliability priors for portugal: toyota, honda, mazda, lexus rate well; bmw 320d, mercedes c-class need full service history; french brands (peugeot, citroen, renault) have higher long-term maintenance costs
