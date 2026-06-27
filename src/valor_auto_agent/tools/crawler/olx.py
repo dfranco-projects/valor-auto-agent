@@ -30,8 +30,9 @@ def build_url(filters: Filters, page: int = 1) -> str:
         qp.append(f"search%5Bfilter_float_year%3Ato%5D={filters.year_max}")
     if filters.km_max is not None:
         qp.append(f"search%5Bfilter_float_mileage%3Ato%5D={filters.km_max}")
-    if filters.model:
-        qp.append(f"search%5Bfilter_enum_modelo%5D%5B0%5D={quote_plus(filters.model.lower())}")
+    # note: olx's `filter_enum_modelo` wants a model enum slug (e.g. serie-3), not a version like
+    # "320d" — passing the version returns zero results, so the model is matched after the crawl by
+    # title instead (see pipeline.crawl).
     if filters.fuel:
         qp.append(f"search%5Bfilter_enum_combustivel%5D%5B0%5D={filters.fuel}")
     if filters.transmission:
