@@ -43,6 +43,11 @@ def build_url(filters: Filters, page: int = 1) -> str:
 
 _PRICE_RX = re.compile(r"(\d[\d\s.]*)\s*€")
 _NUM_RX = re.compile(r"\d+")
+# "120 000 km" / "244.000 km" / "5000 km" (\s also matches the nbsp thousands separator olx uses)
+_KM_RX = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d{4,7})\s*km")
+# the spec reads "2008 - 244.000 km" (or older "2018 120 000 km"): the year sits right before the
+# km figure. anchoring on km avoids picking up a posted/inspection date elsewhere on the card.
+_YEAR_RX = re.compile(r"((?:19|20)\d{2})\s*-?\s*\d[\d.\s]*km")
 
 
 def _int(s: str | None) -> int | None:
@@ -69,19 +74,22 @@ def parse_cards(html: str) -> list[Listing]:
         if price_el:
             m = _PRICE_RX.search(price_el.text())
             price = _int(m.group(1)) if m else None
-        params_el = card.css_first('[data-testid="ad-card-params"], ul')
-        year = km = None
+
+        # specs are matched from the card text to survive olx markup changes: older cards used a
+        # <ul data-testid="ad-card-params"> with separate items, current cards render a single
+        # secondary-text line like "2008 - 244.000 km".
+        spec = card.text(separator=" ", strip=True)
+        kmm = _KM_RX.search(spec)
+        km = _int(kmm.group(1)) if kmm else None
+        ym = _YEAR_RX.search(spec)
+        year = int(ym.group(1)) if ym else None
         fuel = None
-        if params_el:
-            text = params_el.text(separator=" ", strip=True).lower()
-            ym = re.search(r"(19|20)\d{2}", text)
-            year = int(ym.group(0)) if ym else None
-            kmm = re.search(r"(\d{1,3}(?:[\s. ]\d{3})*|\d{4,7})\s*km", text)
-            km = _int(kmm.group(1)) if kmm else None
-            for f in ("gasolina", "diesel", "hibrido", "eletrico", "gpl"):
-                if f in text:
-                    fuel = f
-                    break
+        low = spec.lower()
+        for f in ("gasolina", "diesel", "hibrido", "eletrico", "gpl"):
+            if f in low:
+                fuel = f
+                break
+
         loc_el = card.css_first('[data-testid="location-date"], p.location')
         location = loc_el.text(strip=True) if loc_el else None
 
