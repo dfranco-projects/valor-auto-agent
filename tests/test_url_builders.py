@@ -12,7 +12,8 @@ def test_olx_url_contains_filters():
     assert "filter_float_price%3Afrom%5D=5000" in url
     assert "filter_float_price%3Ato%5D=15000" in url
     assert "filter_float_year%3Afrom%5D=2015" in url
-    assert "filter_float_mileage%3Ato%5D=150000" in url
+    # olx rejects the mileage filter param, so km_max is intentionally not in the url
+    assert "mileage" not in url
     assert "page=2" in url
 
 

@@ -39,4 +39,10 @@ async def crawl(filters: Filters) -> list[Listing]:
         before = len(listings)
         listings = [li for li in listings if _model_match(li.title or "", filters.model)]
         log.info("model filter %r: %d -> %d listings", filters.model, before, len(listings))
+
+    # olx can't filter mileage via url, so enforce km_max here for both sources (unknown km kept)
+    if filters.km_max is not None:
+        before = len(listings)
+        listings = [li for li in listings if li.km is None or li.km <= filters.km_max]
+        log.info("km_max filter %d: %d -> %d listings", filters.km_max, before, len(listings))
     return listings
