@@ -20,13 +20,7 @@ from valor_auto_agent.graph.nodes import (
 from valor_auto_agent.graph.state import AgentState
 
 
-def build(checkpoint_db: str | None = None):
-    settings = load()
-    path = checkpoint_db or settings.checkpoint_db
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, check_same_thread=False)
-    saver = SqliteSaver(conn)
-
+def _stategraph() -> StateGraph:
     g = StateGraph(AgentState)
     g.add_node("decide", decide)
     g.add_node("collect_filters", collect_filters)
@@ -44,8 +38,21 @@ def build(checkpoint_db: str | None = None):
     g.add_edge("rate", "present")
     g.add_edge("present", END)
     g.add_edge("chat", END)
+    return g
 
-    return g.compile(checkpointer=saver)
+
+def build_graph(checkpointer):
+    # nodes are async, so the backend compiles this with an async checkpointer (ainvoke)
+    return _stategraph().compile(checkpointer=checkpointer)
+
+
+def build(checkpoint_db: str | None = None):
+    # sync variant for the cli / dry-run
+    settings = load()
+    path = checkpoint_db or settings.checkpoint_db
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, check_same_thread=False)
+    return _stategraph().compile(checkpointer=SqliteSaver(conn))
 
 
 def main() -> None:

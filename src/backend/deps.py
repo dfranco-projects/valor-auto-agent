@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from functools import lru_cache
+from fastapi import Request
 
 from valor_auto_agent.config import Settings, load
-from valor_auto_agent.graph.builder import build
 
 
-@lru_cache
-def get_graph():
-    # one compiled graph per process; its sqlite checkpoint conn is check_same_thread=False
-    return build()
+def get_graph(request: Request):
+    # the compiled graph is created once in the app lifespan (with an async checkpointer)
+    return request.app.state.graph
 
 
 def get_settings() -> Settings:

@@ -17,9 +17,6 @@ def client(tmp_path, monkeypatch):
     session_mod._factory = None
     importlib.reload(session_mod)
 
-    from backend.deps import get_graph
-
-    get_graph.cache_clear()
     from backend.main import create_app
 
     with TestClient(create_app()) as c:

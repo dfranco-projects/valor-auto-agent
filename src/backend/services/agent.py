@@ -10,8 +10,8 @@ def _cfg(thread_id: str) -> dict:
     return {"configurable": {"thread_id": thread_id}}
 
 
-def _result(graph, thread_id: str) -> dict:
-    state = graph.get_state(_cfg(thread_id))
+async def _result(graph, thread_id: str) -> dict:
+    state = await graph.aget_state(_cfg(thread_id))
     if state.next and "collect_filters" in state.next:
         return {
             "status": "need_filters",
@@ -32,16 +32,16 @@ async def run_message(graph, thread_id: str, text: str, model: str | None) -> di
     await graph.ainvoke(
         {"messages": [HumanMessage(content=text)], "rater_model": model}, _cfg(thread_id)
     )
-    return _result(graph, thread_id)
+    return await _result(graph, thread_id)
 
 
 async def resume(graph, thread_id: str, filters: dict) -> dict:
     await graph.ainvoke(Command(resume=filters), _cfg(thread_id))
-    return _result(graph, thread_id)
+    return await _result(graph, thread_id)
 
 
-def get_history(graph, thread_id: str) -> tuple[list[tuple[str, str]], list[dict]]:
-    state = graph.get_state(_cfg(thread_id))
+async def get_history(graph, thread_id: str) -> tuple[list[tuple[str, str]], list[dict]]:
+    state = await graph.aget_state(_cfg(thread_id))
     history: list[tuple[str, str]] = []
     for m in state.values.get("messages", []) or []:
         if isinstance(m, HumanMessage):

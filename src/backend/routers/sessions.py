@@ -15,10 +15,10 @@ def index():
 
 
 @router.get("/active", response_model=SessionOut)
-def active(graph=Depends(get_graph)):
+async def active(graph=Depends(get_graph)):
     pref = sessions.load_pref()
     thread_id = pref["active_thread_id"] or sessions.new_thread()
-    history, top = agent.get_history(graph, thread_id)
+    history, top = await agent.get_history(graph, thread_id)
     return SessionOut(
         thread_id=thread_id, history=history, top=top, rater_model=pref["rater_model"]
     )
@@ -31,9 +31,9 @@ def new():
 
 
 @router.get("/{thread_id}", response_model=SessionOut)
-def load(thread_id: str, graph=Depends(get_graph)):
+async def load(thread_id: str, graph=Depends(get_graph)):
     sessions.save_pref(active_thread_id=thread_id)
-    history, top = agent.get_history(graph, thread_id)
+    history, top = await agent.get_history(graph, thread_id)
     return SessionOut(
         thread_id=thread_id,
         history=history,
