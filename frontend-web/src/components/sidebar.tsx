@@ -96,6 +96,12 @@ export function Sidebar({
           )}
         </Link>
         <Link
+          href="/evaluations?status=shortlist"
+          className="block rounded px-2 py-1.5 text-sm hover:bg-surface-high"
+        >
+          ♥ Favorites
+        </Link>
+        <Link
           href="/evaluations"
           className="block rounded px-2 py-1.5 text-sm hover:bg-surface-high"
         >

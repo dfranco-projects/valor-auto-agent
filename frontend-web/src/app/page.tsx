@@ -31,7 +31,6 @@ export default function Page() {
   const [top, setTop] = useState<SearchResult[]>([]);
   const [pendingFilters, setPendingFilters] = useState(false);
   const [prefill, setPrefill] = useState<Filters>({});
-  const [formNote, setFormNote] = useState("");
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [cfg, setCfg] = useState<ConfigOut | null>(null);
   const [raterModel, setRaterModel] = useState("");
@@ -90,7 +89,6 @@ export default function Page() {
     if (res.status === "need_filters") {
       setPendingFilters(true);
       setPrefill(res.prefill ?? {});
-      setFormNote(res.reply ?? "");
       push("assistant", res.reply ?? "filters needed");
     } else {
       setPendingFilters(false);
@@ -188,8 +186,17 @@ export default function Page() {
               <MessageBubble key={i} msg={m} />
             ))}
 
+            {busy && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-sm text-muted">
+                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
+                  {pendingFilters ? "scraping olx + standvirtual, then rating…" : "working…"}
+                </div>
+              </div>
+            )}
+
             {pendingFilters && (
-              <FilterForm prefill={prefill} note={formNote} busy={busy} onSubmit={resume} />
+              <FilterForm prefill={prefill} busy={busy} onSubmit={resume} />
             )}
 
             {selected.size >= 2 && (

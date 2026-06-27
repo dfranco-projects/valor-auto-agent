@@ -16,6 +16,13 @@ export default function EvaluationsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [error, setError] = useState("");
 
+  // honor ?status=shortlist (the sidebar "Favorites" link) without an SSR hydration mismatch
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get("status");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (s) setStatusFilter(s);
+  }, []);
+
   useEffect(() => {
     let active = true;
     (async () => {
