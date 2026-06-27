@@ -13,6 +13,7 @@ from langgraph.types import interrupt
 from valor_auto_agent import pipeline
 from valor_auto_agent.config import Settings, load
 from valor_auto_agent.db.exports import snapshot_search
+from valor_auto_agent.db.models import Evaluation as DbEvaluation
 from valor_auto_agent.db.models import Listing as DbListing
 from valor_auto_agent.db.models import Rating as DbRating
 from valor_auto_agent.db.models import Search
@@ -290,6 +291,12 @@ async def present(state: dict) -> dict:
         )
     enriched.sort(key=lambda x: x["score"], reverse=True)
     top = enriched[:10]
+    # reflect any existing shortlist/decision so the ui can show already-saved cars
+    if top:
+        with session() as s:
+            ev = {(e.source, e.external_id): e.status for e in s.query(DbEvaluation).all()}
+        for t in top:
+            t["status"] = ev.get((t["source"], t["external_id"]))
     log.info(
         "present: %d listings, %d ratings -> %d enriched, %d dup groups, top=%d",
         len(raw_listings),

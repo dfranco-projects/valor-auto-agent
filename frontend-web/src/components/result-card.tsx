@@ -18,18 +18,21 @@ export function ResultCard({
   onToggle?: () => void;
 }) {
   const price = r.price_eur ? `${r.price_eur.toLocaleString("pt-PT")} €` : "n/a";
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(r.status === "shortlist");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
 
   const save = async () => {
     if (!r.external_id) return;
     setSaving(true);
+    setError(false);
+    const next = !saved;
     try {
       // "favourite" == shortlist in the evaluations store, keyed by (source, external_id)
-      await api.patchDecision(r.source, r.external_id, saved ? null : "shortlist", "");
-      setSaved((s) => !s);
+      await api.patchDecision(r.source, r.external_id, next ? "shortlist" : null, "");
+      setSaved(next);
     } catch {
-      /* surfaced by the chat error path on the next action */
+      setError(true);
     } finally {
       setSaving(false);
     }
@@ -84,9 +87,10 @@ export function ResultCard({
           </a>
           {r.external_id && (
             <Button size="sm" variant={saved ? "outline" : "ghost"} onClick={save} disabled={saving}>
-              {saved ? "♥ Saved" : "♡ Save"}
+              {saving ? "…" : saved ? "♥ Saved" : "♡ Save"}
             </Button>
           )}
+          {error && <span className="text-xs text-danger">save failed</span>}
         </div>
       </div>
     </Card>
