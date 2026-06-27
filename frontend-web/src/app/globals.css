@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* adk-web dark developer-console palette (lifted from google/adk-web _theme-colors.scss
+   + styles.scss): #121212 surfaces, blue #7cc4ff accent, neutral greys. */
+:root {
+  color-scheme: dark;
+  --background: #121212;
+  --foreground: #e3e3e3;
+  --surface: #1e1e1e;
+  --surface-low: #1a1a1a;
+  --surface-high: #2a2a2a;
+  --surface-highest: #3a3a3a;
+  --muted: #9aa0a6;
+  --border: #333739;
+  --primary: #7cc4ff;
+  --on-primary: #003366;
+  --primary-container: #004b8d;
+  --on-primary-container: #d1e4ff;
+  --danger: #f2b8b5;
+  --success: #7ee2a8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-low: var(--surface-low);
+  --color-surface-high: var(--surface-high);
+  --color-surface-highest: var(--surface-highest);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* thin console-style scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-highest) transparent;
+}
