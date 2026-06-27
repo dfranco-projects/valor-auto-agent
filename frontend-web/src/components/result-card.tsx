@@ -53,7 +53,7 @@ export function ResultCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="rounded bg-primary-container px-1.5 py-0.5 text-xs font-semibold text-on-primary-container">
-            {r.score.toFixed(1)}
+            {r.score != null ? r.score.toFixed(1) : "—"}
           </span>
           <a
             href={r.url}

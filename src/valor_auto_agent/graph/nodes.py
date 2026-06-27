@@ -267,18 +267,17 @@ async def present(state: dict) -> dict:
     dups = {
         (raw_listings[i].source, raw_listings[i].external_id): v for i, v in dup_idx.items()
     }
-    listings = {(li["source"], li["external_id"]): li for li in state.get("listings", [])}
-    ratings = state.get("ratings") or []
+    ratings = {(r["source"], r["external_id"]): r for r in (state.get("ratings") or [])}
+    # listing-centric: every crawled car is shown, with its rating attached when available, so a
+    # rating failure (e.g. provider rate limit) degrades to unrated results instead of an empty page
     enriched: list[dict[str, Any]] = []
-    for r in ratings:
-        key = (r["source"], r["external_id"])
-        li = listings.get(key)
-        if not li:
-            continue
+    for li in state.get("listings", []):
+        key = (li["source"], li["external_id"])
+        r = ratings.get(key)
         enriched.append(
             {
-                "score": float(r["score"]),
-                "rationale": r.get("rationale", ""),
+                "score": float(r["score"]) if r else None,
+                "rationale": r.get("rationale", "") if r else "",
                 "title": li.get("title"),
                 "price_eur": li.get("price_eur"),
                 "year": li.get("year"),
@@ -289,7 +288,8 @@ async def present(state: dict) -> dict:
                 "also_on": dups.get(key, []),
             }
         )
-    enriched.sort(key=lambda x: x["score"], reverse=True)
+    # rated first (highest score), then unrated by cheapest price
+    enriched.sort(key=lambda x: (x["score"] is None, -(x["score"] or 0), x["price_eur"] or 1e12))
     top = enriched[:10]
     # reflect any existing shortlist/decision so the ui can show already-saved cars
     if top:
@@ -297,6 +297,7 @@ async def present(state: dict) -> dict:
             ev = {(e.source, e.external_id): e.status for e in s.query(DbEvaluation).all()}
         for t in top:
             t["status"] = ev.get((t["source"], t["external_id"]))
+    n_rated = sum(1 for e in enriched if e["score"] is not None)
     log.info(
         "present: %d listings, %d ratings -> %d enriched, %d dup groups, top=%d",
         len(raw_listings),
@@ -306,11 +307,15 @@ async def present(state: dict) -> dict:
         len(top),
     )
     # keep the chat reply short — the top picks render as cards in the ui, don't dump them as text
-    summary = (
-        f"found {len(enriched)} matches — here are the top {len(top)}:"
-        if top
-        else "no listings matched the filters"
-    )
+    if not enriched:
+        summary = "no listings matched the filters"
+    elif n_rated == 0:
+        summary = (
+            f"found {len(enriched)} listings, but the rater is rate-limited right now — "
+            f"showing them unrated (try again shortly for scores):"
+        )
+    else:
+        summary = f"found {len(enriched)} matches — here are the top {len(top)}:"
     return {"top": top, "reply": summary, "messages": [AIMessage(content=summary)]}
 
 

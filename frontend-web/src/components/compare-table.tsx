@@ -3,7 +3,7 @@ import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 
 const ROWS: [string, (r: SearchResult) => string][] = [
-  ["score", (r) => r.score.toFixed(1)],
+  ["score", (r) => (r.score != null ? r.score.toFixed(1) : "—")],
   ["price", (r) => (r.price_eur ? `${r.price_eur.toLocaleString("pt-PT")} €` : "—")],
   ["year", (r) => r.year?.toString() ?? "—"],
   ["km", (r) => (r.km != null ? `${r.km.toLocaleString("pt-PT")} km` : "—")],

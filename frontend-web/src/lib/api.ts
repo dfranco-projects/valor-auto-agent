@@ -5,7 +5,7 @@ export type Role = "user" | "assistant" | "error";
 export type Filters = Record<string, string | number | null>;
 
 export interface SearchResult {
-  score: number;
+  score: number | null;
   rationale: string;
   title: string | null;
   price_eur: number | null;
