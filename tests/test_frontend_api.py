@@ -7,6 +7,8 @@ import frontend.api as api
 
 
 class _Resp:
+    status_code = 200
+
     def json(self):
         return {"ok": True}
 

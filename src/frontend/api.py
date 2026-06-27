@@ -8,13 +8,21 @@ import httpx
 BASE = os.getenv("VALOR_API_BASE", "http://localhost:8000")
 
 
+class ApiError(Exception):
+    pass
+
+
 def _call(method: str, path: str, *, retries: int = 20, **kwargs):
     # the backend may still be starting (or restarting); retry connection refusals
     last: Exception | None = None
     for _ in range(retries):
         try:
             with httpx.Client(base_url=BASE, timeout=180) as c:
-                return c.request(method, path, **kwargs).json()
+                r = c.request(method, path, **kwargs)
+                if r.status_code >= 400:
+                    detail = r.text[:300] or r.reason_phrase
+                    raise ApiError(f"backend error {r.status_code}: {detail}")
+                return r.json()
         except httpx.ConnectError as e:
             last = e
             time.sleep(0.5)

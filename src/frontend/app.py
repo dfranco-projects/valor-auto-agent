@@ -30,6 +30,23 @@ st.markdown(
       }
       .st-key-sidebar_nav {margin-top: auto;}
       .block-container {padding-top: 2.5rem;}
+      /* per-message edit/cancel actions: hidden until you hover the message */
+      [class*="st-key-msgact-"] {opacity: 0; transition: opacity .15s;}
+      [data-testid="stChatMessage"]:hover [class*="st-key-msgact-"] {opacity: 1;}
+      [class*="st-key-msgact-"] .stButton button {
+        border: none; background: transparent; padding: 0 .35rem;
+      }
+      /* user messages: blue avatar, right-aligned */
+      [data-testid="stChatMessageAvatarUser"] {
+        background-color: #3a5a8c; color: #fff;
+      }
+      [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+        flex-direction: row-reverse;
+      }
+      [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"])
+        [data-testid="stChatMessageContent"] {
+        text-align: right;
+      }
     </style>
     """,
     unsafe_allow_html=True,

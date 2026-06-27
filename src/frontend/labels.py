@@ -14,3 +14,51 @@ MODEL_LABELS = {
 
 def model_label(model_id: str) -> str:
     return MODEL_LABELS.get(model_id, model_id)
+
+
+# slug -> display name; slugs match the brand paths used by olx.pt and standvirtual.pt
+CAR_BRANDS = {
+    "": "Any brand",
+    "alfa-romeo": "Alfa Romeo",
+    "audi": "Audi",
+    "bmw": "BMW",
+    "byd": "BYD",
+    "chevrolet": "Chevrolet",
+    "citroen": "Citroën",
+    "cupra": "Cupra",
+    "dacia": "Dacia",
+    "ds": "DS",
+    "fiat": "Fiat",
+    "ford": "Ford",
+    "honda": "Honda",
+    "hyundai": "Hyundai",
+    "jaguar": "Jaguar",
+    "jeep": "Jeep",
+    "kia": "Kia",
+    "land-rover": "Land Rover",
+    "lexus": "Lexus",
+    "mazda": "Mazda",
+    "mercedes-benz": "Mercedes-Benz",
+    "mg": "MG",
+    "mini": "MINI",
+    "mitsubishi": "Mitsubishi",
+    "nissan": "Nissan",
+    "opel": "Opel",
+    "peugeot": "Peugeot",
+    "porsche": "Porsche",
+    "renault": "Renault",
+    "seat": "SEAT",
+    "skoda": "Škoda",
+    "smart": "smart",
+    "suzuki": "Suzuki",
+    "tesla": "Tesla",
+    "toyota": "Toyota",
+    "volkswagen": "Volkswagen",
+    "volvo": "Volvo",
+}
+
+BRAND_SLUGS = list(CAR_BRANDS)
+
+
+def brand_label(slug: str) -> str:
+    return CAR_BRANDS.get(slug, slug)
