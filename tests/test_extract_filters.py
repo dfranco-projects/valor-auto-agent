@@ -43,6 +43,28 @@ async def test_extract_filters_nl_overrides_memory(monkeypatch):
     assert "read:" in out["prefill_note"]
 
 
+def test_guess_lang():
+    assert nodes._guess_lang("encontra-me um bmw 320d até 10000") == "pt"
+    assert nodes._guess_lang("find me a bmw 320d under 10k") == "en"
+
+
+def test_prefill_note_localized_pt():
+    note = nodes._prefill_note({"brand": "bmw"}, {}, {"brand": "bmw"}, "pt")
+    assert note.startswith("li:")
+    assert "confirma ou ajusta" in note
+
+
+async def test_extract_filters_threads_language(monkeypatch):
+    async def fake_extract(text, model):
+        return {"brand": "bmw", "lang": "pt"}
+
+    monkeypatch.setattr(nodes, "_extract", fake_extract)
+    monkeypatch.setattr(nodes, "recall_defaults", lambda *a, **k: {})
+    out = await nodes.extract_filters({"messages": [HumanMessage(content="quero um bmw")]})
+    assert out["lang"] == "pt"
+    assert out["prefill_note"].startswith("li:")
+
+
 async def test_extract_filters_empty_note(monkeypatch):
     async def fake_extract(text, model):
         return {}

@@ -138,12 +138,8 @@ export default function Page() {
   const resume = async (filters: Filters) => {
     setBusy(true);
     try {
-      const res = await api.postResume(threadId, filters);
-      if (res.status === "done" && !res.top?.length) {
-        push("error", "No listings matched these filters — adjust them and try again.");
-        return; // keep the pre-filled form up
-      }
-      apply(res);
+      // the backend reply is localized (incl. the no-results / rate-limited cases); just show it
+      apply(await api.postResume(threadId, filters));
     } catch (e) {
       push("error", `Scrape failed: ${e}`);
     } finally {

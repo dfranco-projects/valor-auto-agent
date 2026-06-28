@@ -65,7 +65,9 @@ EXTRACT_SYS = (
     "gasolina,diesel,hibrido,eletrico,gpl), transmission (one of manual,automatica), "
     "location (portuguese city). examples: 'under 10k'/'até 10000€' => price_max=10000; "
     "'from 2015'/'2015+' => year_min=2015; 'auto' => transmission=automatica. "
-    "do not invent values that are not implied by the message."
+    "do not invent values that are not implied by the message. "
+    'also include "lang": the two-letter code of the language the message is written in '
+    "(e.g. pt, en)."
 )
 
 _FILTER_KEYS = tuple(Filters.model_fields)
@@ -141,26 +143,84 @@ def _humanize(d: dict) -> str:
     return ", ".join(f"{k}={v}" for k, v in d.items())
 
 
-def _prefill_note(extracted: dict, recalled: dict, prefill: dict) -> str:
+# user-facing agent messages, localized to the language the user wrote in (en/pt for now).
+_MSGS = {
+    "en": {
+        "couldnt_read": "i couldn't read specific filters — fill the form to start the scrape.",
+        "read": "read",
+        "from_prefs": "from your usual prefs",
+        "confirm": "confirm or adjust below.",
+        "no_listings": "no listings matched the filters",
+        "found": "found {n} matches — here are the top {k}:",
+        "rate_limited": (
+            "found {n} listings, but the rater hit its rate limit — showing them unrated for now "
+            "(try again in a bit, or pick another model in settings)."
+        ),
+        "filters_needed": "filters needed — confirm to start the scrape",
+        "no_key": "no rater api key is configured — i can only chat once a provider key is set.",
+    },
+    "pt": {
+        "couldnt_read": (
+            "não percebi filtros específicos — preenche o formulário para iniciar a pesquisa."
+        ),
+        "read": "li",
+        "from_prefs": "das tuas preferências habituais",
+        "confirm": "confirma ou ajusta em baixo.",
+        "no_listings": "nenhum anúncio corresponde a estes filtros",
+        "found": "encontrei {n} resultados — aqui estão os {k} melhores:",
+        "rate_limited": (
+            "encontrei {n} anúncios, mas a avaliação atingiu o limite do modelo — a mostrar sem "
+            "pontuação por agora (tenta novamente daqui a pouco, ou escolhe outro modelo)."
+        ),
+        "filters_needed": "preciso dos filtros — confirma para iniciar a pesquisa",
+        "no_key": (
+            "não há nenhuma chave de api configurada — só posso conversar quando definires uma."
+        ),
+    },
+}
+
+# fallback heuristic for the offline path; the extractor llm returns the language otherwise
+_PT_HINTS = (
+    "ç", "ã", "õ", "á", "é", " até ", " carro", " quero", " procuro", " barato", " com ", " sob "
+)
+
+
+def _guess_lang(text: str) -> str:
+    t = f" {text.lower()} "
+    return "pt" if any(h in t for h in _PT_HINTS) else "en"
+
+
+def _msgs(lang: str | None) -> dict:
+    return _MSGS.get((lang or "en")[:2], _MSGS["en"])
+
+
+def _prefill_note(extracted: dict, recalled: dict, prefill: dict, lang: str) -> str:
+    m = _msgs(lang)
     if not prefill:
-        return "i couldn't read specific filters — fill the form to start the scrape."
+        return m["couldnt_read"]
     parts = []
     read = {k: v for k, v in prefill.items() if k in extracted}
     if read:
-        parts.append("read: " + _humanize(read))
+        parts.append(f"{m['read']}: " + _humanize(read))
     from_mem = {k: v for k, v in prefill.items() if k not in extracted and k in recalled}
     if from_mem:
-        parts.append("from your usual prefs: " + _humanize(from_mem))
-    parts.append("confirm or adjust below.")
+        parts.append(f"{m['from_prefs']}: " + _humanize(from_mem))
+    parts.append(m["confirm"])
     return " · ".join(parts)
 
 
 async def extract_filters(state: dict) -> dict:
     text = await _last_user_text(state)
-    extracted = _coerce_filters(await _extract(text, state.get("rater_model")))
+    raw = await _extract(text, state.get("rater_model"))
+    lang = (raw.get("lang") if isinstance(raw, dict) else None) or _guess_lang(text)
+    extracted = _coerce_filters(raw)
     recalled = recall_defaults()
     prefill = _coerce_filters({**recalled, **extracted})  # nl wins over remembered prefs
-    return {"filters_prefill": prefill, "prefill_note": _prefill_note(extracted, recalled, prefill)}
+    return {
+        "filters_prefill": prefill,
+        "prefill_note": _prefill_note(extracted, recalled, prefill, lang),
+        "lang": lang,
+    }
 
 
 async def collect_filters(state: dict) -> dict:
@@ -307,15 +367,13 @@ async def present(state: dict) -> dict:
         len(top),
     )
     # keep the chat reply short — the top picks render as cards in the ui, don't dump them as text
+    m = _msgs(state.get("lang"))
     if not enriched:
-        summary = "no listings matched the filters"
+        summary = m["no_listings"]
     elif n_rated == 0:
-        summary = (
-            f"found {len(enriched)} listings, but the rater is rate-limited right now — "
-            f"showing them unrated (try again shortly for scores):"
-        )
+        summary = m["rate_limited"].format(n=len(enriched))
     else:
-        summary = f"found {len(enriched)} matches — here are the top {len(top)}:"
+        summary = m["found"].format(n=len(enriched), k=len(top))
     return {"top": top, "reply": summary, "messages": [AIMessage(content=summary)]}
 
 
@@ -323,13 +381,16 @@ async def chat(state: dict) -> dict:
     settings = load()
     text = await _last_user_text(state)
     if not settings.anthropic_api_key:
-        msg = "anthropic api key not set — i can only scrape when configured"
+        msg = _msgs(_guess_lang(text))["no_key"]
         return {"reply": msg, "messages": [AIMessage(content=msg)]}
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     resp = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=400,
-        system="you are a helpful assistant for a portuguese used-car shopper",
+        system=(
+            "you are a helpful assistant for a portuguese used-car shopper. "
+            "always reply in the same language the user wrote in."
+        ),
         messages=[{"role": "user", "content": text or "(empty)"}],
     )
     out = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()

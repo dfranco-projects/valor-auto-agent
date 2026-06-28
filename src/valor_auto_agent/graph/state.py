@@ -9,6 +9,7 @@ class AgentState(TypedDict, total=False):
     messages: Annotated[list, add_messages]
     should_scrape: bool
     rater_model: str | None
+    lang: str | None
     filters_prefill: dict | None
     prefill_note: str | None
     filters: dict | None
