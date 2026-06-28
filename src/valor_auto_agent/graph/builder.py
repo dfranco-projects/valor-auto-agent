@@ -13,6 +13,7 @@ from valor_auto_agent.graph.nodes import (
     collect_filters,
     decide,
     extract_filters,
+    inspect,
     present,
     rate,
     route_decide,
@@ -28,6 +29,7 @@ def _stategraph() -> StateGraph:
     g.add_node("collect_filters", collect_filters)
     g.add_node("scrape", scrape)
     g.add_node("rate", rate)
+    g.add_node("inspect", inspect)
     g.add_node("present", present)
     g.add_node("chat", chat)
 
@@ -38,7 +40,8 @@ def _stategraph() -> StateGraph:
     g.add_edge("extract_filters", "collect_filters")
     g.add_edge("collect_filters", "scrape")
     g.add_edge("scrape", "rate")
-    g.add_edge("rate", "present")
+    g.add_edge("rate", "inspect")
+    g.add_edge("inspect", "present")
     g.add_edge("present", END)
     g.add_edge("chat", END)
     return g

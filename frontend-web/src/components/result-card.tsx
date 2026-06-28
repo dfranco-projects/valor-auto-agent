@@ -106,6 +106,14 @@ export function ResultCard({
           {r.year != null && <span>· {r.year}</span>}
           {r.km != null && <span>· {r.km.toLocaleString("pt-PT")} km</span>}
           <Badge className="ml-1">{r.source}</Badge>
+          {r.inspected && (
+            <Badge
+              className="border-success/40 text-success"
+              title="deep-checked: photos + description analysed"
+            >
+              🔍 inspected
+            </Badge>
+          )}
           {r.has_photo === false && (
             <Badge className="border-danger/40 text-danger">no photos</Badge>
           )}

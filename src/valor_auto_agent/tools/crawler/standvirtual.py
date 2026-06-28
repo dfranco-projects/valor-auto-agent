@@ -9,7 +9,7 @@ from urllib.parse import quote_plus
 from selectolax.parser import HTMLParser
 
 from valor_auto_agent.config import load
-from valor_auto_agent.tools.crawler.base import fetch_html, with_browser
+from valor_auto_agent.tools.crawler.base import extract_apollo_images, fetch_html, with_browser
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
 
 BASE = "https://www.standvirtual.com"
@@ -128,6 +128,32 @@ def parse_cards(html: str) -> list[Listing]:
             if li is not None:
                 out.append(li)
     return out
+
+
+_DESC_RX = re.compile(r'"description"\s*:\s*"((?:[^"\\]|\\.)*)"')
+_TAG_RX = re.compile(r"<[^>]+>")
+
+
+def _detail_description(html: str) -> str:
+    # the advert description lives in __NEXT_DATA__ as an html-in-json string; take the longest
+    # candidate, json-unescape it, and strip the html tags
+    cands = _DESC_RX.findall(html)
+    if not cands:
+        return ""
+    raw = max(cands, key=len)
+    try:
+        text = json.loads(f'"{raw}"')
+    except (json.JSONDecodeError, ValueError):
+        text = raw
+    return _TAG_RX.sub(" ", text).strip()
+
+
+async def fetch_detail(ctx, url: str) -> tuple[str, list[str]]:
+    """return (seller description, gallery image urls) from a standvirtual ad page."""
+    html = await fetch_html(ctx, url)
+    if not html:
+        return "", []
+    return _detail_description(html), extract_apollo_images(html)
 
 
 async def search(filters: Filters, max_pages: int | None = None) -> list[Listing]:

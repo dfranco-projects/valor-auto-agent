@@ -16,6 +16,7 @@ export interface SearchResult {
   url: string;
   image_url?: string | null;
   has_photo?: boolean;
+  inspected?: boolean;
   status?: string | null;
   also_on?: { source: string; url: string }[];
 }

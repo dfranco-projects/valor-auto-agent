@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,6 +11,26 @@ from patchright.async_api import Browser, BrowserContext, async_playwright
 from valor_auto_agent.config import load
 
 log = logging.getLogger(__name__)
+
+# both olx and standvirtual host photos on the same apollo cdn (...;s=WxH sizing suffix)
+_APOLLO_RX = re.compile(
+    r"https://ireland\.apollo\.olxcdn\.com[^\s\"'\\<>]+?image;s=\d+x\d+"
+)
+
+
+def extract_apollo_images(html: str, limit: int = 4) -> list[str]:
+    """distinct gallery photo urls from a detail page (dedup a photo's size variants)."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for u in _APOLLO_RX.findall(html):
+        base = u.split(";s=")[0]
+        if base in seen:
+            continue
+        seen.add(base)
+        out.append(u)
+        if len(out) >= limit:
+            break
+    return out
 
 _UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 "

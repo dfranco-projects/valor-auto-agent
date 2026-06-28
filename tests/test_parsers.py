@@ -3,8 +3,28 @@ from __future__ import annotations
 from pathlib import Path
 
 from valor_auto_agent.tools.crawler import olx, standvirtual
+from valor_auto_agent.tools.crawler.base import extract_apollo_images
+from valor_auto_agent.tools.crawler.standvirtual import _detail_description
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+_A = "https://ireland.apollo.olxcdn.com/v1/files"
+
+
+def test_extract_apollo_images_dedupes_size_variants():
+    html = (
+        f'"{_A}/aaa-PT/image;s=320x240" x "{_A}/aaa-PT/image;s=1020x765" '
+        f'"{_A}/bbb-PT/image;s=320x240"'
+    )
+    imgs = extract_apollo_images(html, limit=4)
+    assert len(imgs) == 2  # the two sizes of photo "aaa" collapse to one
+
+
+def test_sv_detail_description_unescapes_and_strips_html():
+    html = '{"description":"\\u003cp\\u003eBMW 218\\u003cbr\\u003ediesel\\u003c/p\\u003e","x":1}'
+    desc = _detail_description(html)
+    assert "BMW 218" in desc
+    assert "<" not in desc
 
 
 def test_parse_olx_card():

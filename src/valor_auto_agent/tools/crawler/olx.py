@@ -8,7 +8,7 @@ from urllib.parse import quote_plus
 from selectolax.parser import HTMLParser
 
 from valor_auto_agent.config import load
-from valor_auto_agent.tools.crawler.base import fetch_html, with_browser
+from valor_auto_agent.tools.crawler.base import extract_apollo_images, fetch_html, with_browser
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
 
 BASE = "https://www.olx.pt"
@@ -122,6 +122,16 @@ def parse_cards(html: str) -> list[Listing]:
             )
         )
     return out
+
+
+async def fetch_detail(ctx, url: str) -> tuple[str, list[str]]:
+    """return (seller description, gallery image urls) from an olx ad page."""
+    html = await fetch_html(ctx, url, scroll=True)
+    if not html:
+        return "", []
+    el = HTMLParser(html).css_first('[data-cy="ad_description"]')
+    desc = el.text(separator=" ", strip=True) if el else ""
+    return desc, extract_apollo_images(html)
 
 
 async def search(filters: Filters, max_pages: int | None = None) -> list[Listing]:

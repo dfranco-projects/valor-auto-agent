@@ -321,6 +321,42 @@ async def rate(state: dict) -> dict:
     return {"ratings": rated}
 
 
+async def inspect(state: dict) -> dict:
+    # deep pass: re-score the highest-ranked photographed listings from their gallery + description
+    settings = load()
+    model = state.get("rater_model") or settings.rater_model
+    ratings = state.get("ratings") or []
+    if not ratings or not model.startswith("gemini"):
+        return {}
+    listings = {
+        (li["source"], li["external_id"]): Listing(**li) for li in state.get("listings", [])
+    }
+    ranked = sorted(ratings, key=lambda r: float(r.get("score") or 0), reverse=True)
+    targets: list[Listing] = []
+    for r in ranked:
+        li = listings.get((r["source"], r["external_id"]))
+        if li and li.image_url:
+            targets.append(li)
+        if len(targets) >= 6:
+            break
+    if not targets:
+        return {}
+
+    from valor_auto_agent.subagents.inspector import inspect_listings
+
+    log.info("inspect %d top listings via %s", len(targets), model)
+    refined = await inspect_listings(targets, model)
+    log.info("inspect refined %d listings", len(refined))
+    by_key = {(r["source"], r["external_id"]): dict(r) for r in ratings}
+    for ref in refined:
+        row = by_key.get((ref["source"], ref["external_id"]))
+        if row is not None:
+            row["score"] = ref["score"]
+            row["rationale"] = ref["rationale"]
+            row["inspected"] = True
+    return {"ratings": list(by_key.values())}
+
+
 async def present(state: dict) -> dict:
     raw_listings = [Listing(**li) for li in state.get("listings", [])]
     dup_idx = also_on(raw_listings)
@@ -347,6 +383,7 @@ async def present(state: dict) -> dict:
                 "url": li.get("url"),
                 "image_url": li.get("image_url"),
                 "has_photo": bool(li.get("image_url")),
+                "inspected": bool(r and r.get("inspected")),
                 "also_on": dups.get(key, []),
             }
         )
