@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from valor_auto_agent.tools.crawler import olx, standvirtual
 from valor_auto_agent.tools.crawler.base import extract_apollo_images
-from valor_auto_agent.tools.crawler.standvirtual import _detail_description
+from valor_auto_agent.tools.crawler.standvirtual import _parse_advert
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -20,11 +21,29 @@ def test_extract_apollo_images_dedupes_size_variants():
     assert len(imgs) == 2  # the two sizes of photo "aaa" collapse to one
 
 
-def test_sv_detail_description_unescapes_and_strips_html():
-    html = '{"description":"\\u003cp\\u003eBMW 218\\u003cbr\\u003ediesel\\u003c/p\\u003e","x":1}'
-    desc = _detail_description(html)
-    assert "BMW 218" in desc
-    assert "<" not in desc
+def test_sv_parse_advert_extracts_specs_desc_equipment_photos():
+    advert = {
+        "description": "<p>BMW 320d<br>1 dono</p>",
+        "details": [
+            {"key": "power", "label": "Potência", "value": "177 cv"},
+            {"key": "color", "label": "Cor", "value": "Preto"},
+        ],
+        "equipment": [
+            {"key": "audio", "label": "Áudio", "values": [{"key": "radio", "label": "Rádio"}]}
+        ],
+        "images": {"photos": [{"id": "https://img/1.jpg"}, {"id": "https://img/2.jpg"}]},
+    }
+    html = (
+        '<html><body><script id="__NEXT_DATA__">'
+        + json.dumps({"props": {"pageProps": {"advert": advert}}})
+        + "</script></body></html>"
+    )
+    d = _parse_advert(html)
+    assert d.specs["Potência"] == "177 cv"
+    assert d.specs["Cor"] == "Preto"
+    assert "BMW 320d" in d.description and "<" not in d.description
+    assert "Rádio" in d.equipment
+    assert d.images == ["https://img/1.jpg", "https://img/2.jpg"]
 
 
 def test_parse_olx_card():

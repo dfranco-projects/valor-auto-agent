@@ -23,6 +23,14 @@ class Filters(BaseModel):
     location: str | None = None
 
 
+class Detail(BaseModel):
+    # richer data pulled from an ad's own page, used by the deep inspector
+    description: str = ""
+    images: list[str] = Field(default_factory=list)
+    specs: dict[str, str] = Field(default_factory=dict)
+    equipment: list[str] = Field(default_factory=list)
+
+
 class Listing(BaseModel):
     source: Source
     external_id: str

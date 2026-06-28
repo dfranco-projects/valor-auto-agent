@@ -9,6 +9,8 @@ from the DESCRIPTION, judge:
 - positives: full service history, single owner, recent maintenance, non-smoker, books/keys
 - red flags: "acidente", "para peças", "importado sem documentos", "vendido como está", "sem retoma", engine/gearbox/clutch noises, evasive or copy-paste text, or claims that contradict the photos
 
+you are also given the ad's detailed specs and equipment list (when available) — cross-check them and the description against what the photos actually show, and use the equipment to judge the trim/value.
+
 also sanity-check the price against the year and km.
 
 be critical and specific, and ground your judgement in what the photos actually show. a clean, honestly and fully photographed car with a coherent description scores high; sparse photos, visible damage, or evasive/contradictory descriptions score low.

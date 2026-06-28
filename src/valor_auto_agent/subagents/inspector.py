@@ -12,7 +12,7 @@ from valor_auto_agent.config import load
 from valor_auto_agent.subagents.rater import _gemini_client, lang_name
 from valor_auto_agent.tools.crawler import olx, standvirtual
 from valor_auto_agent.tools.crawler.base import with_browser
-from valor_auto_agent.tools.crawler.schemas import Listing
+from valor_auto_agent.tools.crawler.schemas import Detail, Listing
 
 log = logging.getLogger(__name__)
 _PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "inspector.md"
@@ -29,28 +29,30 @@ def _sample(urls: list[str], k: int) -> list[str]:
     return [urls[int(i * step)] for i in range(k)]
 
 
-def _context(li: Listing, desc: str, total_photos: int, shown: int, lang: str | None) -> str:
-    specs = {
+def _context(li: Listing, detail: Detail, shown: int, lang: str | None) -> str:
+    card = {
         "title": li.title,
         "price_eur": li.price_eur,
         "year": li.year,
         "km": li.km,
-        "fuel": li.fuel,
-        "transmission": li.transmission,
-        "location": li.location,
     }
-    return (
-        f"listing specs: {json.dumps(specs, ensure_ascii=False)}\n\n"
-        f"seller description:\n{desc[:2000] or '(none provided)'}\n\n"
-        f"this listing has {total_photos} photos in total; {shown} representative ones (sampled "
-        "across the gallery) are attached below. judge photo coverage by the TOTAL count, not by "
-        "how many are attached here.\n\n"
-        f"write the rationale in {lang_name(lang)}."
+    parts = [f"listing: {json.dumps(card, ensure_ascii=False)}"]
+    if detail.specs:
+        parts.append(f"detailed specs: {json.dumps(detail.specs, ensure_ascii=False)}")
+    if detail.equipment:
+        parts.append("equipment: " + ", ".join(detail.equipment[:30]))
+    parts.append(f"seller description:\n{detail.description[:2500] or '(none provided)'}")
+    parts.append(
+        f"this listing has {len(detail.images)} photos in total; {shown} representative ones "
+        "(sampled across the gallery) are attached below. judge photo coverage by the TOTAL "
+        "count, not by how many are attached here."
     )
+    parts.append(f"write the rationale in {lang_name(lang)}.")
+    return "\n\n".join(parts)
 
 
-async def _fetch_details(targets: list[Listing]) -> dict[tuple[str, str], tuple[str, list[str]]]:
-    out: dict[tuple[str, str], tuple[str, list[str]]] = {}
+async def _fetch_details(targets: list[Listing]) -> dict[tuple[str, str], Detail]:
+    out: dict[tuple[str, str], Detail] = {}
     async with with_browser() as ctx:
         for li in targets:
             fetcher = olx.fetch_detail if li.source == "olx" else standvirtual.fetch_detail
@@ -58,7 +60,7 @@ async def _fetch_details(targets: list[Listing]) -> dict[tuple[str, str], tuple[
                 out[(li.source, li.external_id)] = await fetcher(ctx, li.url)
             except Exception as e:
                 log.warning("detail fetch failed %s: %s", li.url, e)
-                out[(li.source, li.external_id)] = ("", [])
+                out[(li.source, li.external_id)] = Detail()
     return out
 
 
@@ -76,22 +78,21 @@ async def _download(http: httpx.AsyncClient, urls: list[str]) -> list[bytes]:
 
 async def _inspect_one(
     li: Listing,
-    detail: tuple[str, list[str]],
+    detail: Detail,
     model: str,
     lang: str | None,
     sem: asyncio.Semaphore,
     http: httpx.AsyncClient,
 ) -> dict | None:
-    desc, image_urls = detail
-    total_photos = len(image_urls)
+    total_photos = len(detail.images)
     async with sem:
-        images = await _download(http, _sample(image_urls, _SEND_IMAGES))
+        images = await _download(http, _sample(detail.images, _SEND_IMAGES))
         if not images:
             return None  # nothing to look at — leave the first-pass text rating untouched
         prompt = (
             _PROMPT_PATH.read_text(encoding="utf-8")
             + "\n\n"
-            + _context(li, desc, total_photos, len(images), lang)
+            + _context(li, detail, len(images), lang)
         )
         parts: list[types.Part] = [types.Part.from_text(text=prompt)]
         parts += [types.Part.from_bytes(data=b, mime_type="image/jpeg") for b in images]

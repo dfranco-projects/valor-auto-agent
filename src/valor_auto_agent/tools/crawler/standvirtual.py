@@ -10,7 +10,7 @@ from selectolax.parser import HTMLParser
 
 from valor_auto_agent.config import load
 from valor_auto_agent.tools.crawler.base import extract_apollo_images, fetch_html, with_browser
-from valor_auto_agent.tools.crawler.schemas import Filters, Listing
+from valor_auto_agent.tools.crawler.schemas import Detail, Filters, Listing
 
 BASE = "https://www.standvirtual.com"
 log = logging.getLogger(__name__)
@@ -130,30 +130,52 @@ def parse_cards(html: str) -> list[Listing]:
     return out
 
 
-_DESC_RX = re.compile(r'"description"\s*:\s*"((?:[^"\\]|\\.)*)"')
 _TAG_RX = re.compile(r"<[^>]+>")
 
 
-def _detail_description(html: str) -> str:
-    # the advert description lives in __NEXT_DATA__ as an html-in-json string; take the longest
-    # candidate, json-unescape it, and strip the html tags
-    cands = _DESC_RX.findall(html)
-    if not cands:
-        return ""
-    raw = max(cands, key=len)
+def _parse_advert(html: str) -> Detail:
+    # standvirtual is next.js: the ad page embeds the full advert object in __NEXT_DATA__ with
+    # structured specs (details), grouped equipment, the html description, and the photo gallery
+    nd = HTMLParser(html).css_first("script#__NEXT_DATA__")
+    if nd is None:
+        return Detail()
     try:
-        text = json.loads(f'"{raw}"')
-    except (json.JSONDecodeError, ValueError):
-        text = raw
-    return _TAG_RX.sub(" ", text).strip()
+        adv = json.loads(nd.text())["props"]["pageProps"]["advert"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return Detail()
+    if not isinstance(adv, dict):
+        return Detail()
+
+    desc = _TAG_RX.sub(" ", adv.get("description") or "").strip()
+    specs = {
+        str(p["label"]): str(p["value"])
+        for p in (adv.get("details") or [])
+        if isinstance(p, dict) and p.get("label") and p.get("value") is not None
+    }
+    equipment: list[str] = []
+    for group in adv.get("equipment") or []:
+        if not isinstance(group, dict):
+            continue
+        for v in group.get("values") or []:
+            if isinstance(v, dict) and v.get("label"):
+                equipment.append(str(v["label"]))
+    images = [
+        ph["id"]
+        for ph in ((adv.get("images") or {}).get("photos") or [])
+        if isinstance(ph, dict) and ph.get("id")
+    ]
+    return Detail(description=desc, images=images, specs=specs, equipment=equipment)
 
 
-async def fetch_detail(ctx, url: str) -> tuple[str, list[str]]:
-    """return (seller description, gallery image urls) from a standvirtual ad page."""
+async def fetch_detail(ctx, url: str) -> Detail:
+    """parse a standvirtual ad page into structured specs, equipment, description, and photos."""
     html = await fetch_html(ctx, url)
     if not html:
-        return "", []
-    return _detail_description(html), extract_apollo_images(html, limit=30)
+        return Detail()
+    d = _parse_advert(html)
+    if not d.images:  # fall back to scraping apollo urls if the json shape changes
+        d.images = extract_apollo_images(html, limit=30)
+    return d
 
 
 async def search(filters: Filters, max_pages: int | None = None) -> list[Listing]:

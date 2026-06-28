@@ -331,14 +331,17 @@ async def inspect(state: dict) -> dict:
     listings = {
         (li["source"], li["external_id"]): Listing(**li) for li in state.get("listings", [])
     }
-    ranked = sorted(ratings, key=lambda r: float(r.get("score") or 0), reverse=True)
-    targets: list[Listing] = []
-    for r in ranked:
-        li = listings.get((r["source"], r["external_id"]))
-        if li and li.image_url:
-            targets.append(li)
-        if len(targets) >= 6:
-            break
+    photographed = [
+        (r, listings[(r["source"], r["external_id"])])
+        for r in ratings
+        if (r["source"], r["external_id"]) in listings
+        and listings[(r["source"], r["external_id"])].image_url
+    ]
+    # prioritise standvirtual (its pages carry far richer specs), then by first-pass score
+    photographed.sort(
+        key=lambda rl: (rl[0]["source"] != "standvirtual", -float(rl[0].get("score") or 0))
+    )
+    targets = [li for _, li in photographed[:6]]
     if not targets:
         return {}
 
