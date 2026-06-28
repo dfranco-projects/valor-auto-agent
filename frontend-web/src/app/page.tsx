@@ -44,6 +44,7 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [raterDown, setRaterDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const toggleSelect = (i: number) =>
@@ -103,6 +104,8 @@ export default function Page() {
       if (res.top?.length) {
         setTop(res.top);
         setSelected(new Set());
+        // the model was unavailable on this call if results came back entirely unrated
+        setRaterDown(res.top.every((t) => t.score == null));
       }
     }
   };
@@ -195,9 +198,15 @@ export default function Page() {
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-5">
           <div className="truncate text-sm font-medium">{sessionTitle || "New chat"}</div>
           {raterModel && (
-            <Badge className="shrink-0 gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+            <Badge
+              className={cn("shrink-0 gap-1.5", raterDown && "border-danger/40 text-danger")}
+              title={raterDown ? "model was unavailable (rate-limited) on the last search" : undefined}
+            >
+              <span
+                className={cn("h-1.5 w-1.5 rounded-full", raterDown ? "bg-danger" : "bg-success")}
+              />
               {modelLabel(raterModel)}
+              {raterDown && " · unavailable"}
             </Badge>
           )}
         </header>
