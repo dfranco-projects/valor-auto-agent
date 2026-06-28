@@ -53,6 +53,7 @@ def render_user_message(listings: list[Listing], context: str = "") -> str:
             "fuel": li.fuel,
             "transmission": li.transmission,
             "location": li.location,
+            "has_photo": bool(li.image_url),
             "url": li.url,
         }
         for li in listings

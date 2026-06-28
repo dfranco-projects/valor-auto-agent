@@ -6,6 +6,7 @@ scoring rubric (apply all that have data):
 - km-per-year: divide km by (current_year - year). below ~12000 is healthy, 12000-20000 is normal, above 25000 is a yellow flag, above 35000 is a red flag
 - age: cars older than 12 years lose points unless price is well below median
 - brand/model reliability priors for portugal: toyota, honda, mazda, lexus rate well; bmw 320d, mercedes c-class need full service history; french brands (peugeot, citroen, renault) have higher long-term maintenance costs
+- photos: has_photo=false is a strong negative — a listing with no photos can't be assessed and signals low trust; cap its score at 4.0 and say so in the rationale ("sem fotos"/"no photos"). never rank a photoless ad highly
 - description red flags: "acidente", "para peças", "importado sem documentos", "vendido como esta", "motor com ruído", "caixa", "embraiagem"; suspiciously low price for the spec (likely scam) → strong negative
 - seller type: private seller with full history > stand with recent imports
 - fuel/transmission relevance to filters: penalize mismatches

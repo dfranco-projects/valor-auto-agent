@@ -345,12 +345,14 @@ async def present(state: dict) -> dict:
                 "source": li.get("source"),
                 "external_id": li.get("external_id"),
                 "url": li.get("url"),
+                "image_url": li.get("image_url"),
+                "has_photo": bool(li.get("image_url")),
                 "also_on": dups.get(key, []),
             }
         )
     # rated first (highest score), then unrated by cheapest price
     enriched.sort(key=lambda x: (x["score"] is None, -(x["score"] or 0), x["price_eur"] or 1e12))
-    top = enriched[:10]
+    top = enriched[:20]
     # reflect any existing shortlist/decision so the ui can show already-saved cars
     if top:
         with session() as s:
