@@ -153,7 +153,7 @@ async def fetch_detail(ctx, url: str) -> tuple[str, list[str]]:
     html = await fetch_html(ctx, url)
     if not html:
         return "", []
-    return _detail_description(html), extract_apollo_images(html)
+    return _detail_description(html), extract_apollo_images(html, limit=30)
 
 
 async def search(filters: Filters, max_pages: int | None = None) -> list[Listing]:

@@ -23,6 +23,10 @@ def _system_prompt() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
+def lang_name(lang: str | None) -> str:
+    return {"pt": "portuguese", "en": "english"}.get((lang or "en")[:2], "english")
+
+
 def market_context(listings: list[Listing]) -> str:
     # a deterministic price benchmark computed once over the WHOLE search, so scores don't drift
     # with batch composition or chunking — the model is told to use these, not re-estimate them.
@@ -183,12 +187,15 @@ async def _rate_chunk(
     return []
 
 
-async def rate_batch(listings: list[Listing], model: str | None = None) -> list[dict]:
+async def rate_batch(
+    listings: list[Listing], model: str | None = None, lang: str | None = None
+) -> list[dict]:
     if not listings:
         return []
     settings = load()
     model = model or settings.rater_model
     context = market_context(listings)  # computed over the full batch, shared by every chunk
+    context += f"\n\nwrite each rationale in {lang_name(lang)}."
     chunks = [listings[i : i + _CHUNK] for i in range(0, len(listings), _CHUNK)]
     sem = asyncio.Semaphore(_CONCURRENCY)
     log.info("rate_batch start: %d listings via %s in %d chunks", len(listings), model, len(chunks))

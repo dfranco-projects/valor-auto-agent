@@ -9,19 +9,27 @@ import httpx
 from google.genai import types
 
 from valor_auto_agent.config import load
-from valor_auto_agent.subagents.rater import _gemini_client
+from valor_auto_agent.subagents.rater import _gemini_client, lang_name
 from valor_auto_agent.tools.crawler import olx, standvirtual
 from valor_auto_agent.tools.crawler.base import with_browser
 from valor_auto_agent.tools.crawler.schemas import Listing
 
 log = logging.getLogger(__name__)
 _PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "inspector.md"
-_MAX_IMAGES = 4
+_SEND_IMAGES = 6  # representative photos sent to the vision model (sampled across the gallery)
 _CONCURRENCY = 2
 _TIMEOUT_S = 120
 
 
-def _context(li: Listing, desc: str) -> str:
+def _sample(urls: list[str], k: int) -> list[str]:
+    # spread the sample across the gallery so it covers exterior/interior/engine, not just the first
+    if len(urls) <= k:
+        return urls
+    step = len(urls) / k
+    return [urls[int(i * step)] for i in range(k)]
+
+
+def _context(li: Listing, desc: str, total_photos: int, shown: int, lang: str | None) -> str:
     specs = {
         "title": li.title,
         "price_eur": li.price_eur,
@@ -34,7 +42,10 @@ def _context(li: Listing, desc: str) -> str:
     return (
         f"listing specs: {json.dumps(specs, ensure_ascii=False)}\n\n"
         f"seller description:\n{desc[:2000] or '(none provided)'}\n\n"
-        "the attached images are this listing's photos. inspect them and rate the listing."
+        f"this listing has {total_photos} photos in total; {shown} representative ones (sampled "
+        "across the gallery) are attached below. judge photo coverage by the TOTAL count, not by "
+        "how many are attached here.\n\n"
+        f"write the rationale in {lang_name(lang)}."
     )
 
 
@@ -53,7 +64,7 @@ async def _fetch_details(targets: list[Listing]) -> dict[tuple[str, str], tuple[
 
 async def _download(http: httpx.AsyncClient, urls: list[str]) -> list[bytes]:
     images: list[bytes] = []
-    for u in urls[:_MAX_IMAGES]:
+    for u in urls:
         try:
             r = await http.get(u)
             if r.status_code == 200 and r.content:
@@ -67,15 +78,21 @@ async def _inspect_one(
     li: Listing,
     detail: tuple[str, list[str]],
     model: str,
+    lang: str | None,
     sem: asyncio.Semaphore,
     http: httpx.AsyncClient,
 ) -> dict | None:
     desc, image_urls = detail
+    total_photos = len(image_urls)
     async with sem:
-        images = await _download(http, image_urls)
+        images = await _download(http, _sample(image_urls, _SEND_IMAGES))
         if not images:
             return None  # nothing to look at — leave the first-pass text rating untouched
-        prompt = _PROMPT_PATH.read_text(encoding="utf-8") + "\n\n" + _context(li, desc)
+        prompt = (
+            _PROMPT_PATH.read_text(encoding="utf-8")
+            + "\n\n"
+            + _context(li, desc, total_photos, len(images), lang)
+        )
         parts: list[types.Part] = [types.Part.from_text(text=prompt)]
         parts += [types.Part.from_bytes(data=b, mime_type="image/jpeg") for b in images]
         client = _gemini_client(load())
@@ -96,14 +113,16 @@ async def _inspect_one(
                 "external_id": li.external_id,
                 "score": float(data["score"]),
                 "rationale": str(data.get("rationale", "")),
-                "photos": len(images),
+                "photos": total_photos,
             }
         except Exception as e:
             log.warning("inspect failed %s: %s", li.external_id, e)
             return None
 
 
-async def inspect_listings(targets: list[Listing], model: str) -> list[dict]:
+async def inspect_listings(
+    targets: list[Listing], model: str, lang: str | None = None
+) -> list[dict]:
     """deep multimodal pass: fetch each ad's gallery + description and re-score from the photos."""
     if not targets:
         return []
@@ -112,7 +131,7 @@ async def inspect_listings(targets: list[Listing], model: str) -> list[dict]:
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as http:
         results = await asyncio.gather(
             *(
-                _inspect_one(li, details[(li.source, li.external_id)], model, sem, http)
+                _inspect_one(li, details[(li.source, li.external_id)], model, lang, sem, http)
                 for li in targets
             )
         )

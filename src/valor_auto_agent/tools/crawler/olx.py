@@ -131,7 +131,7 @@ async def fetch_detail(ctx, url: str) -> tuple[str, list[str]]:
         return "", []
     el = HTMLParser(html).css_first('[data-cy="ad_description"]')
     desc = el.text(separator=" ", strip=True) if el else ""
-    return desc, extract_apollo_images(html)
+    return desc, extract_apollo_images(html, limit=30)
 
 
 async def search(filters: Filters, max_pages: int | None = None) -> list[Listing]:

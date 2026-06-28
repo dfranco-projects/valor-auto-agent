@@ -294,7 +294,7 @@ async def rate(state: dict) -> dict:
         return {"ratings": []}
     model = state.get("rater_model") or load().rater_model
     log.info("rate start: %d listings model=%s", len(listings), model)
-    rated = await rate_batch(listings, model=model)
+    rated = await rate_batch(listings, model=model, lang=state.get("lang"))
     log.info("rate done: %d ratings", len(rated))
     search_id = state.get("search_id")
     if search_id:
@@ -345,7 +345,7 @@ async def inspect(state: dict) -> dict:
     from valor_auto_agent.subagents.inspector import inspect_listings
 
     log.info("inspect %d top listings via %s", len(targets), model)
-    refined = await inspect_listings(targets, model)
+    refined = await inspect_listings(targets, model, lang=state.get("lang"))
     log.info("inspect refined %d listings", len(refined))
     by_key = {(r["source"], r["external_id"]): dict(r) for r in ratings}
     for ref in refined:
