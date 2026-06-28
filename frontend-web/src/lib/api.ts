@@ -14,6 +14,8 @@ export interface SearchResult {
   source: string;
   external_id?: string;
   url: string;
+  image_url?: string | null;
+  has_photo?: boolean;
   status?: string | null;
   also_on?: { source: string; url: string }[];
 }

@@ -46,8 +46,10 @@ export function ResultCard({
   return (
     <div
       className={cn(
-        "group flex gap-3 rounded-xl border bg-surface p-3.5 transition-colors",
-        selected ? "border-primary/50 bg-primary-container/10" : "border-border hover:border-border-strong",
+        "group flex gap-3 rounded-xl border bg-surface p-3 transition-colors",
+        selected
+          ? "border-primary/50 bg-primary-container/10"
+          : "border-border hover:border-border-strong",
       )}
     >
       {onToggle && (
@@ -60,33 +62,53 @@ export function ResultCard({
         />
       )}
 
-      <div className="flex flex-col items-center gap-1 pt-0.5">
-        <div
+      {/* thumbnail with score overlay; missing photo is flagged as a risk */}
+      <div className="relative h-[68px] w-[96px] shrink-0 overflow-hidden rounded-lg bg-surface-high">
+        {r.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={r.image_url}
+            alt={r.title ?? "listing"}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 text-center text-danger">
+            <span className="text-base leading-none">⚠</span>
+            <span className="text-[10px] leading-tight">no photos</span>
+          </div>
+        )}
+        <span
           className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-lg text-base font-semibold tabular-nums",
+            "absolute left-1 top-1 flex h-7 min-w-7 items-center justify-center rounded-md px-1 text-sm font-semibold tabular-nums backdrop-blur-sm",
             scoreColor(r.score),
           )}
         >
           {r.score != null ? r.score.toFixed(1) : "—"}
-        </div>
-        <span className="text-[10px] font-medium text-muted">#{rank}</span>
+        </span>
       </div>
 
       <div className="min-w-0 flex-1">
-        <a
-          href={r.url}
-          target="_blank"
-          rel="noreferrer"
-          className="line-clamp-1 font-semibold leading-tight hover:text-primary"
-        >
-          {r.title ?? "(untitled)"}
-        </a>
+        <div className="flex items-baseline gap-2">
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noreferrer"
+            className="line-clamp-1 font-semibold leading-tight hover:text-primary"
+          >
+            {r.title ?? "(untitled)"}
+          </a>
+          <span className="ml-auto shrink-0 text-[11px] text-muted">#{rank}</span>
+        </div>
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">
           <span className="font-semibold text-foreground">{price}</span>
           {r.year != null && <span>· {r.year}</span>}
           {r.km != null && <span>· {r.km.toLocaleString("pt-PT")} km</span>}
           <Badge className="ml-1">{r.source}</Badge>
+          {r.has_photo === false && (
+            <Badge className="border-danger/40 text-danger">no photos</Badge>
+          )}
           {r.also_on?.map((d) => (
             <a key={d.url} href={d.url} target="_blank" rel="noreferrer">
               <Badge className="border-primary/40 text-primary hover:bg-primary/10">
@@ -96,9 +118,9 @@ export function ResultCard({
           ))}
         </div>
 
-        {r.rationale && <p className="mt-2 text-sm leading-relaxed text-muted">{r.rationale}</p>}
+        {r.rationale && <p className="mt-1.5 text-sm leading-relaxed text-muted">{r.rationale}</p>}
 
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2">
           <a
             href={r.url}
             target="_blank"
