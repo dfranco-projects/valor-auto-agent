@@ -43,7 +43,7 @@ export function Sidebar({
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-low/60">
       <div className="flex items-center gap-2.5 px-4 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary-strong to-primary text-on-primary shadow-sm">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-on-primary">
           <span className="text-lg leading-none">◈</span>
         </div>
         <div className="leading-tight">

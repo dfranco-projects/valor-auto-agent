@@ -285,7 +285,7 @@ export default function Page() {
 function Welcome({ onPick }: { onPick: (text: string) => void }) {
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center px-6 text-center animate-rise">
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-strong to-primary text-2xl text-on-primary shadow-lg">
+      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl text-on-primary shadow-lg">
         ◈
       </div>
       <h1 className="text-2xl font-semibold tracking-tight">Find your next car</h1>
@@ -321,7 +321,7 @@ function MessageBubble({ msg }: { msg: Msg }) {
   return (
     <div className={cn("flex gap-2.5 animate-rise", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
-        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-strong to-primary text-sm text-on-primary">
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm text-on-primary">
           ◈
         </div>
       )}
