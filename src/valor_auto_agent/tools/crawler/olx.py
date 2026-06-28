@@ -93,6 +93,12 @@ def parse_cards(html: str) -> list[Listing]:
         loc_el = card.css_first('[data-testid="location-date"], p.location')
         location = loc_el.text(strip=True) if loc_el else None
 
+        img = card.css_first("img")
+        image_url = (img.attributes.get("src") if img else None) or None
+        # skip placeholder/data-uri images so a real "no photo" listing isn't given a fake thumbnail
+        if image_url and not image_url.startswith("http"):
+            image_url = None
+
         external_id = ""
         for tok in href.split("/")[::-1]:
             if tok.startswith("ID") or tok.endswith(".html"):
@@ -112,6 +118,7 @@ def parse_cards(html: str) -> list[Listing]:
                 fuel=fuel,  # type: ignore[arg-type]
                 location=location,
                 url=url,
+                image_url=image_url,
             )
         )
     return out
@@ -125,7 +132,8 @@ async def search(filters: Filters, max_pages: int | None = None) -> list[Listing
         for page in range(1, max_pages + 1):
             url = build_url(filters, page=page)
             log.info("olx fetch page %d %s", page, url)
-            html = await fetch_html(ctx, url)
+            # scroll to trigger olx's lazy-loaded card images (real src is absent otherwise)
+            html = await fetch_html(ctx, url, scroll=True)
             if not html:
                 log.warning("olx page %d returned no html (blocked or timed out)", page)
                 break

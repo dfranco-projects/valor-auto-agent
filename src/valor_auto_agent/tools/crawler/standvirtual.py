@@ -88,6 +88,7 @@ def _node_to_listing(node: dict) -> Listing | None:
     amount = ((node.get("price") or {}).get("amount")) or {}
     price = int(amount["units"]) if amount.get("units") is not None else None
     city = ((node.get("location") or {}).get("city") or {}).get("name")
+    thumb = (node.get("thumbnail") or {}).get("x1")
     return Listing(
         source="standvirtual",
         external_id=str(node.get("id") or url),
@@ -99,6 +100,7 @@ def _node_to_listing(node: dict) -> Listing | None:
         transmission=_GEARBOX_MAP.get((params.get("gearbox") or "").lower()),  # type: ignore[arg-type]
         location=city,
         url=url,
+        image_url=thumb,
     )
 
 

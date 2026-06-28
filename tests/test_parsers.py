@@ -18,6 +18,7 @@ def test_parse_olx_card():
     assert c.year == 2018
     assert c.km == 120000
     assert c.fuel == "diesel"
+    assert c.image_url == "https://img.olx.pt/bmw-320d.jpg"
     assert c.url.endswith("ID12345.html")
     assert c.external_id == "bmw-320d-2018-ID12345.html"
 

@@ -35,7 +35,22 @@ async def with_browser() -> AsyncIterator[BrowserContext]:
             await browser.close()
 
 
-async def fetch_html(ctx: BrowserContext, url: str, *, attempts: int = 3) -> str | None:
+async def _autoscroll(page, max_steps: int = 15, pause: int = 250) -> None:
+    # nudge the page down so lazy-loaded images (e.g. olx) fetch their real src before we snapshot
+    for _ in range(max_steps):
+        await page.evaluate("window.scrollBy(0, window.innerHeight * 0.9)")
+        await page.wait_for_timeout(pause)
+        at_bottom = await page.evaluate(
+            "(window.scrollY + window.innerHeight) >= (document.body.scrollHeight - 50)"
+        )
+        if at_bottom:
+            break
+    await page.wait_for_timeout(400)
+
+
+async def fetch_html(
+    ctx: BrowserContext, url: str, *, attempts: int = 3, scroll: bool = False
+) -> str | None:
     delay = 1.5
     for i in range(attempts):
         page = await ctx.new_page()
@@ -47,6 +62,8 @@ async def fetch_html(ctx: BrowserContext, url: str, *, attempts: int = 3) -> str
                 delay *= 2
                 continue
             await page.wait_for_timeout(800)
+            if scroll:
+                await _autoscroll(page)
             return await page.content()
         except Exception as e:
             log.warning("fetch error %s: %s (try %d)", url, e, i + 1)
