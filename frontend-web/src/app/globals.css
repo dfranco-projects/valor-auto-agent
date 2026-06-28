@@ -1,23 +1,26 @@
 @import "tailwindcss";
 
-/* adk-web dark developer-console palette (lifted from google/adk-web _theme-colors.scss
-   + styles.scss): #121212 surfaces, blue #7cc4ff accent, neutral greys. */
+/* dark palette inspired by google/adk-web, warmed up for a product feel:
+   #0f1115 base, layered surfaces, a sky-blue accent, soft borders. */
 :root {
   color-scheme: dark;
-  --background: #121212;
-  --foreground: #e3e3e3;
-  --surface: #1e1e1e;
-  --surface-low: #1a1a1a;
-  --surface-high: #2a2a2a;
-  --surface-highest: #3a3a3a;
-  --muted: #9aa0a6;
-  --border: #333739;
-  --primary: #7cc4ff;
-  --on-primary: #003366;
-  --primary-container: #004b8d;
-  --on-primary-container: #d1e4ff;
-  --danger: #f2b8b5;
-  --success: #7ee2a8;
+  --background: #0f1115;
+  --foreground: #e7e9ec;
+  --surface: #181b20;
+  --surface-low: #14171b;
+  --surface-high: #20242b;
+  --surface-highest: #2b3038;
+  --muted: #969ba6;
+  --border: #262b32;
+  --border-strong: #333a44;
+  --primary: #6cb8ff;
+  --primary-strong: #8fccff;
+  --on-primary: #04243f;
+  --primary-container: #123a5e;
+  --on-primary-container: #cfe6ff;
+  --danger: #ff9b95;
+  --success: #74e0a3;
+  --radius: 0.75rem;
 }
 
 @theme inline {
@@ -29,7 +32,9 @@
   --color-surface-highest: var(--surface-highest);
   --color-muted: var(--muted);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
   --color-on-primary: var(--on-primary);
   --color-primary-container: var(--primary-container);
   --color-on-primary-container: var(--on-primary-container);
@@ -45,12 +50,50 @@ body {
 }
 
 body {
-  background: var(--background);
   color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* faint accent glow at the top so the app doesn't read as a flat slab */
+  background:
+    radial-gradient(900px 420px at 50% -160px, rgba(108, 184, 255, 0.08), transparent 70%),
+    var(--background);
+}
+
+::selection {
+  background: rgba(108, 184, 255, 0.28);
 }
 
 /* thin console-style scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--surface-highest) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-high);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--surface-highest);
+  background-clip: padding-box;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.22s ease-out both;
 }

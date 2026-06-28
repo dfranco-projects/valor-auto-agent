@@ -5,16 +5,17 @@ type Variant = "primary" | "ghost" | "outline" | "danger";
 type Size = "sm" | "md" | "icon";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-on-primary hover:opacity-90",
+  primary:
+    "bg-gradient-to-b from-primary-strong to-primary text-on-primary shadow-sm hover:brightness-105 active:brightness-95",
   ghost: "text-foreground hover:bg-surface-high",
-  outline: "border border-border text-foreground hover:bg-surface-high",
-  danger: "text-danger hover:bg-surface-high",
+  outline: "border border-border-strong bg-surface text-foreground hover:bg-surface-high",
+  danger: "text-danger hover:bg-danger/10",
 };
 
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-sm",
-  md: "h-9 px-4 text-sm",
-  icon: "h-8 w-8",
+  md: "h-10 px-4 text-sm",
+  icon: "h-9 w-9",
 };
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -27,9 +28,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all",
         "disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none",
-        "focus-visible:ring-2 focus-visible:ring-primary/60",
+        "focus-visible:ring-2 focus-visible:ring-primary/50 active:scale-[0.98]",
         variants[variant],
         sizes[size],
         className,

@@ -41,24 +41,28 @@ export function Sidebar({
   }, []);
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-low">
-      <div className="p-3">
-        <div className="mb-3 flex items-center gap-2 px-1">
-          <span className="text-primary">●</span>
-          <span className="font-semibold">Valor-Auto</span>
+    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface-low/60">
+      <div className="flex items-center gap-2.5 px-4 py-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary-strong to-primary text-on-primary shadow-sm">
+          <span className="text-lg leading-none">◈</span>
         </div>
-        <Button variant="outline" className="w-full" onClick={onNewChat}>
-          ＋ New chat
-        </Button>
+        <div className="leading-tight">
+          <div className="text-sm font-semibold">Valor-Auto</div>
+          <div className="text-[11px] text-muted">used-car agent</div>
+        </div>
       </div>
 
       <div className="px-3">
-        <label className="text-xs text-muted">Model</label>
-        <Select
-          className="mt-1"
-          value={raterModel}
-          onChange={(e) => onModelChange(e.target.value)}
-        >
+        <Button variant="outline" className="w-full justify-start" onClick={onNewChat}>
+          <span className="text-base leading-none">＋</span> New chat
+        </Button>
+      </div>
+
+      <div className="px-3 pt-4">
+        <label className="px-1 text-[11px] font-medium uppercase tracking-wide text-muted">
+          Rater model
+        </label>
+        <Select className="mt-1.5" value={raterModel} onChange={(e) => onModelChange(e.target.value)}>
           {models.map((m) => (
             <option key={m} value={m}>
               {modelLabel(m)}
@@ -67,47 +71,69 @@ export function Sidebar({
         </Select>
       </div>
 
-      <div className="mt-4 flex-1 overflow-y-auto px-3">
-        <div className="mb-1 px-1 text-xs uppercase tracking-wide text-muted">Recent</div>
-        {sessions.map((s) => (
-          <button
-            key={s.thread_id}
-            onClick={() => onSelect(s.thread_id)}
-            className={cn(
-              "block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-surface-high",
-              s.thread_id === activeThread && "bg-surface-high text-primary",
-            )}
-          >
-            {s.title || "untitled"}
-          </button>
-        ))}
+      <div className="mt-5 flex min-h-0 flex-1 flex-col px-3">
+        <div className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-muted">
+          Recent
+        </div>
+        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+          {sessions.length === 0 && (
+            <p className="px-1 py-2 text-xs text-muted">No chats yet.</p>
+          )}
+          {sessions.map((s) => (
+            <button
+              key={s.thread_id}
+              onClick={() => onSelect(s.thread_id)}
+              className={cn(
+                "mb-0.5 block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors",
+                s.thread_id === activeThread
+                  ? "bg-surface-high font-medium text-foreground"
+                  : "text-muted hover:bg-surface-high hover:text-foreground",
+              )}
+            >
+              {s.title || "untitled"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-0.5 border-t border-border p-3">
-        <Link
-          href="/saved"
-          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-surface-high"
-        >
+      <nav className="mt-2 space-y-0.5 border-t border-border p-3">
+        <NavLink href="/evaluations?status=shortlist" icon="♥">
+          Favorites
+        </NavLink>
+        <NavLink href="/saved" icon="🔔" badge={unread}>
           Saved &amp; alerts
-          {unread > 0 && (
-            <Badge className="ml-auto border-primary/40 bg-primary-container text-on-primary-container">
-              {unread}
-            </Badge>
-          )}
-        </Link>
-        <Link
-          href="/evaluations?status=shortlist"
-          className="block rounded px-2 py-1.5 text-sm hover:bg-surface-high"
-        >
-          ♥ Favorites
-        </Link>
-        <Link
-          href="/evaluations"
-          className="block rounded px-2 py-1.5 text-sm hover:bg-surface-high"
-        >
-          Evaluations →
-        </Link>
-      </div>
+        </NavLink>
+        <NavLink href="/evaluations" icon="☰">
+          Evaluations
+        </NavLink>
+      </nav>
     </aside>
+  );
+}
+
+function NavLink({
+  href,
+  icon,
+  badge,
+  children,
+}: {
+  href: string;
+  icon: string;
+  badge?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-muted transition-colors hover:bg-surface-high hover:text-foreground"
+    >
+      <span className="w-4 text-center text-xs opacity-80">{icon}</span>
+      {children}
+      {badge != null && badge > 0 && (
+        <Badge className="ml-auto border-primary/40 bg-primary-container text-on-primary-container">
+          {badge}
+        </Badge>
+      )}
+    </Link>
   );
 }

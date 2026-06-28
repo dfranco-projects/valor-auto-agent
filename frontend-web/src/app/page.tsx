@@ -11,19 +11,26 @@ import {
   SessionMeta,
   SessionOut,
 } from "@/lib/api";
-import { isGemini } from "@/lib/labels";
+import { isGemini, modelLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/sidebar";
 import { FilterForm } from "@/components/filter-form";
 import { ResultCard } from "@/components/result-card";
 import { CompareTable } from "@/components/compare-table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 interface Msg {
   role: Role;
   content: string;
 }
+
+const EXAMPLES = [
+  "find me a bmw 320d under 10k",
+  "audi a4 avant diesel automatic",
+  "cheap toyota with low km",
+  "volkswagen golf gti under 15k",
+];
 
 export default function Page() {
   const [threadId, setThreadId] = useState("");
@@ -167,6 +174,13 @@ export default function Page() {
     api.patchConfig(m).catch(() => {});
   };
 
+  const sessionTitle = sessions.find((s) => s.thread_id === threadId)?.title;
+  const send = (text: string) => {
+    setInput("");
+    submit(text);
+  };
+  const empty = history.length === 0 && top.length === 0 && !pendingFilters && !busy;
+
   return (
     <div className="flex h-screen">
       <Sidebar
@@ -179,79 +193,117 @@ export default function Page() {
         onModelChange={changeModel}
       />
 
-      <main className="flex flex-1 flex-col">
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
-            {history.map((m, i) => (
-              <MessageBubble key={i} msg={m} />
-            ))}
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-5">
+          <div className="truncate text-sm font-medium">{sessionTitle || "New chat"}</div>
+          {raterModel && (
+            <Badge className="shrink-0 gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              {modelLabel(raterModel)}
+            </Badge>
+          )}
+        </header>
 
-            {busy && (
-              <div className="flex justify-start">
-                <div className="flex items-center gap-2 rounded-lg bg-surface px-3 py-2 text-sm text-muted">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          {empty ? (
+            <Welcome onPick={send} />
+          ) : (
+            <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
+              {history.map((m, i) => (
+                <MessageBubble key={i} msg={m} />
+              ))}
+
+              {busy && (
+                <div className="flex items-center gap-2.5 px-1 text-sm text-muted animate-rise">
                   <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
                   {pendingFilters ? "scraping olx + standvirtual, then rating…" : "working…"}
                 </div>
-              </div>
-            )}
+              )}
 
-            {pendingFilters && (
-              <FilterForm prefill={prefill} busy={busy} onSubmit={resume} />
-            )}
+              {pendingFilters && <FilterForm prefill={prefill} busy={busy} onSubmit={resume} />}
 
-            {selected.size >= 2 && (
-              <CompareTable
-                items={[...selected].sort((a, b) => a - b).map((i) => top[i])}
-                onClear={() => setSelected(new Set())}
-              />
-            )}
+              {selected.size >= 2 && (
+                <CompareTable
+                  items={[...selected].sort((a, b) => a - b).map((i) => top[i])}
+                  onClear={() => setSelected(new Set())}
+                />
+              )}
 
-            {top.length > 0 && (
-              <section className="space-y-2">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
-                  Top picks
-                  {selected.size === 1 && (
-                    <span className="ml-2 font-normal normal-case text-muted">
-                      select one more to compare
-                    </span>
-                  )}
-                </h2>
-                {top.map((r, i) => (
-                  <ResultCard
-                    key={`${r.source}-${i}`}
-                    rank={i + 1}
-                    r={r}
-                    selected={selected.has(i)}
-                    onToggle={() => toggleSelect(i)}
-                  />
-                ))}
-              </section>
-            )}
-          </div>
+              {top.length > 0 && (
+                <section className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                      Top picks
+                    </h2>
+                    {selected.size === 1 && (
+                      <span className="text-xs text-muted">select one more to compare</span>
+                    )}
+                  </div>
+                  {top.map((r, i) => (
+                    <ResultCard
+                      key={`${r.source}-${i}`}
+                      rank={i + 1}
+                      r={r}
+                      selected={selected.has(i)}
+                      onToggle={() => toggleSelect(i)}
+                    />
+                  ))}
+                </section>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="border-t border-border bg-surface-low p-3">
+        <div className="shrink-0 border-t border-border bg-surface-low/60 px-4 py-3">
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const p = input;
-              setInput("");
-              submit(p);
+              if (input.trim()) send(input);
             }}
-            className="mx-auto flex max-w-3xl gap-2"
+            className="mx-auto flex max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface px-2 py-1.5 shadow-sm transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20"
           >
-            <Input
+            <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask the agent — e.g. find me a bmw 320d under 10k"
               disabled={busy || !threadId}
+              className="h-9 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted disabled:opacity-60"
             />
-            <Button type="submit" disabled={busy || !threadId}>
+            <Button type="submit" size="sm" disabled={busy || !threadId || !input.trim()}>
               {busy ? "…" : "Send"}
             </Button>
           </form>
+          <p className="mx-auto mt-1.5 max-w-3xl px-2 text-[11px] text-muted">
+            searches OLX + StandVirtual, then rates every listing for value.
+          </p>
         </div>
       </main>
+    </div>
+  );
+}
+
+function Welcome({ onPick }: { onPick: (text: string) => void }) {
+  return (
+    <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center px-6 text-center animate-rise">
+      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-strong to-primary text-2xl text-on-primary shadow-lg">
+        ◈
+      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Find your next car</h1>
+      <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
+        Describe what you want in plain language. I&apos;ll search OLX and StandVirtual, rate every
+        listing for value, and surface the best picks — then you confirm the filters.
+      </p>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {EXAMPLES.map((ex) => (
+          <button
+            key={ex}
+            onClick={() => onPick(ex)}
+            className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm text-foreground transition-colors hover:border-primary/50 hover:bg-surface-high"
+          >
+            {ex}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -259,18 +311,26 @@ export default function Page() {
 function MessageBubble({ msg }: { msg: Msg }) {
   if (msg.role === "error") {
     return (
-      <div className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-        {msg.content}
+      <div className="flex items-start gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-2.5 text-sm text-danger animate-rise">
+        <span className="mt-0.5 shrink-0">⚠</span>
+        <span>{msg.content}</span>
       </div>
     );
   }
   const isUser = msg.role === "user";
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+    <div className={cn("flex gap-2.5 animate-rise", isUser ? "justify-end" : "justify-start")}>
+      {!isUser && (
+        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary-strong to-primary text-sm text-on-primary">
+          ◈
+        </div>
+      )}
       <div
         className={cn(
-          "max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm",
-          isUser ? "bg-primary-container text-on-primary-container" : "bg-surface",
+          "max-w-[80%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
+          isUser
+            ? "rounded-br-sm bg-primary-container text-on-primary-container"
+            : "rounded-bl-sm border border-border bg-surface",
         )}
       >
         {msg.content}
