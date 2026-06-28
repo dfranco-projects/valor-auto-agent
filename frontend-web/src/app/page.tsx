@@ -188,6 +188,8 @@ export default function Page() {
         activeThread={threadId}
         models={cfg?.models ?? []}
         raterModel={raterModel}
+        geminiKey={!!cfg?.gemini_key}
+        anthropicKey={!!cfg?.anthropic_key}
         onNewChat={newChat}
         onSelect={selectSession}
         onModelChange={changeModel}

@@ -14,6 +14,8 @@ export function Sidebar({
   activeThread,
   models,
   raterModel,
+  geminiKey,
+  anthropicKey,
   onNewChat,
   onSelect,
   onModelChange,
@@ -22,6 +24,8 @@ export function Sidebar({
   activeThread: string;
   models: string[];
   raterModel: string;
+  geminiKey: boolean;
+  anthropicKey: boolean;
   onNewChat: () => void;
   onSelect: (threadId: string) => void;
   onModelChange: (model: string) => void;
@@ -107,6 +111,36 @@ export function Sidebar({
           Evaluations
         </NavLink>
       </nav>
+
+      <div className="border-t border-border px-3 py-3">
+        <div className="flex items-center gap-2 rounded-lg bg-surface px-2.5 py-2">
+          <span className="text-sm text-muted">⚙</span>
+          <span className="text-xs font-medium">Settings</span>
+          <div className="ml-auto flex items-center gap-2.5 text-[11px] text-muted">
+            <span
+              className="flex items-center gap-1"
+              title={geminiKey ? "Gemini key configured" : "no Gemini key"}
+            >
+              <span
+                className={cn("h-1.5 w-1.5 rounded-full", geminiKey ? "bg-success" : "bg-border-strong")}
+              />
+              Gemini
+            </span>
+            <span
+              className="flex items-center gap-1"
+              title={anthropicKey ? "Claude key configured" : "no Claude key"}
+            >
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  anthropicKey ? "bg-success" : "bg-border-strong",
+                )}
+              />
+              Claude
+            </span>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }
