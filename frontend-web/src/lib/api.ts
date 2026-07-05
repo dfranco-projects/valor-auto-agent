@@ -96,6 +96,11 @@ export interface Alert {
   created_at: string | null;
 }
 
+export type StreamEvent =
+  | { event: "phase"; node: string }
+  | ({ event: "result" } & SearchResponse)
+  | { event: "error"; detail: string };
+
 export class ApiError extends Error {}
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -109,6 +114,50 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     throw new ApiError(`backend error ${res.status}: ${detail}`);
   }
   return res.json() as Promise<T>;
+}
+
+// POST + read the SSE body via fetch (native EventSource can't POST); resolves
+// with the final result, invoking onPhase as graph-node progress frames arrive.
+async function stream(
+  path: string,
+  body: unknown,
+  onPhase: (node: string) => void,
+): Promise<SearchResponse> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok || !res.body) {
+    const detail = (await res.text()).slice(0, 300) || res.statusText;
+    throw new ApiError(`backend error ${res.status}: ${detail}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let result: SearchResponse | null = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) !== -1) {
+      const frame = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const data = frame
+        .split("\n")
+        .filter((l) => l.startsWith("data: "))
+        .map((l) => l.slice(6))
+        .join("\n");
+      if (!data) continue;
+      const evt = JSON.parse(data) as StreamEvent;
+      if (evt.event === "phase") onPhase(evt.node);
+      else if (evt.event === "error") throw new ApiError(evt.detail);
+      else if (evt.event === "result") result = evt;
+    }
+  }
+  if (!result) throw new ApiError("stream ended without a result");
+  return result;
 }
 
 export const api = {
@@ -127,6 +176,19 @@ export const api = {
     }),
   postResume: (threadId: string, filters: Filters) =>
     call<SearchResponse>("POST", "/api/search/resume", { thread_id: threadId, filters }),
+  streamSearch: (
+    threadId: string,
+    message: string,
+    raterModel: string | null,
+    onPhase: (node: string) => void,
+  ) =>
+    stream(
+      "/api/search/stream",
+      { thread_id: threadId, message, rater_model: raterModel },
+      onPhase,
+    ),
+  streamResume: (threadId: string, filters: Filters, onPhase: (node: string) => void) =>
+    stream("/api/search/resume/stream", { thread_id: threadId, filters }, onPhase),
   getEvaluations: (params: {
     search?: string;
     sources?: string[];
