@@ -31,7 +31,14 @@ def test_sv_parse_advert_extracts_specs_desc_equipment_photos():
         "equipment": [
             {"key": "audio", "label": "Áudio", "values": [{"key": "radio", "label": "Rádio"}]}
         ],
-        "images": {"photos": [{"id": "https://img/1.jpg"}, {"id": "https://img/2.jpg"}]},
+        "images": {
+            "photos": [
+                # real shape: "url" is the downloadable link, "id" may be opaque
+                {"id": "opaque-token-1", "url": "https://img/1.jpg"},
+                {"id": "https://img/2.jpg"},  # older ads: id doubles as the url
+                {"id": "opaque-token-3"},  # no usable url -> dropped
+            ]
+        },
     }
     html = (
         '<html><body><script id="__NEXT_DATA__">'
