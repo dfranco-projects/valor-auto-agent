@@ -1,161 +1,122 @@
 # valor-auto-agent
 
-A used-car shopping agent for the Portuguese market. It scrapes **OLX** and **Standvirtual**,
-rates every listing from 0–10 with the LLM of your choice, and gives you a persistent library to
-review, annotate, and decide on the cars worth chasing.
+Your personal used-car scout for the Portuguese market. Tell it what you're looking for in plain
+language — it searches **OLX** and **Standvirtual** for you, scores every listing 0–10 with an LLM,
+and keeps a persistent library of every car it has rated so you can shortlist, annotate, and decide
+without juggling browser tabs.
 
 ---
 
-## Features
+## What it does
 
-- **Natural-language search** — type *"find me a bmw 320d under 10k"* and the agent extracts the
-  filters and hands you a **pre-filled form to confirm**, rather than a blank one.
-- **Long-term memory** — remembers your usual brand/budget and pre-fills the gaps a query leaves out.
-- **Two-source crawl** — OLX and Standvirtual in parallel, behind their Cloudflare front.
-- **LLM rating** — each batch is scored 0–10 using the batch itself as market context.
-- **Pick your model** — rate with Claude (Opus / Sonnet / Haiku) or Gemini (2.5 / 3.x).
-- **Saved searches + alerts** — watch a search; a scheduler re-runs it and alerts only on listings
-  that appear after you started watching.
-- **Compare + dedupe** — the same car cross-posted to both sites is grouped ("also on …"); select
-  results to compare them side by side.
-- **Persistent evaluations** — every rated car is saved; browse, filter, shortlist, and add notes.
-- **Clean architecture** — a FastAPI backend over the domain core, a Next.js UI that only speaks HTTP.
+- **You talk, it searches.** Type *"find me a bmw 320d under 10k"* — it figures out the filters and
+  shows you a pre-filled form to confirm, not a blank one to fill in.
+- **It learns your taste.** Your usual brand and budget are remembered and used to fill in whatever
+  a query leaves out.
+- **It searches both major sites at once** and shows live progress while it scrapes, rates, and
+  inspects.
+- **Every car gets a score and a reason.** Listings are rated 0–10 against the rest of the batch,
+  so "good deal" means good *relative to what's on the market right now*.
+- **Top picks can get a second look.** The best candidates are inspected in depth — photos and the
+  full description — to refine their score.
+- **Spot the duplicates.** The same car posted on both sites is grouped, with an "also on …" badge.
+- **Compare side by side.** Tick two or more results to see them in one table.
+- **Watch a search.** Save it with a re-run cadence and get alerted only about listings that appear
+  *after* you started watching — no flood of what's already there.
+- **Nothing gets lost.** Every rated car lands in your Evaluations library, where your status and
+  notes persist across sessions.
+- **Pick your judge.** Rate with Claude (Opus / Sonnet / Haiku) or Gemini (2.5 / 3.x), switchable
+  from the sidebar.
 
-## How it works
+## Getting started
 
-1. You describe what you want in the chat (e.g. *"find me a bmw 320d under 10k"*).
-2. The agent extracts filters from the message, fills gaps from memory, and shows a **pre-filled
-   form** to confirm or adjust.
-3. On submit, both sites are scraped concurrently and the listings are persisted.
-4. The rater scores the batch and the top picks come back with rationale, source links, and any
-   cross-source duplicates flagged.
-5. Every car lands in **Evaluations**, where your status and notes persist across sessions.
-
-## Architecture
-
-Three tiers with a real HTTP boundary — the UI never touches the database or the graph directly.
-
-```
-browser
-  │
-  ▼  http
-Next.js (frontend-web/)  ──fetch──▶  FastAPI (backend/)
-                                       │
-                               valor_auto_agent (domain)
-                                 graph · db · rater · crawler · scheduler
-```
-
-- **`valor_auto_agent/`** — the domain core and the only published Python package: LangGraph
-  orchestration, the crawler, the rater sub-agent, memory, dedupe, and SQLite persistence.
-- **`backend/`** — a FastAPI service; the only tier that talks to the graph and the database. Hosts
-  the saved-search scheduler in its lifespan.
-- **`frontend-web/`** — a Next.js (App Router) SPA that is a pure HTTP client of the backend.
-
-## Stack
-
-- Python 3.12 + [uv](https://docs.astral.sh/uv/)
-- [LangGraph](https://langchain-ai.github.io/langgraph/) — orchestration, with `interrupt()` to
-  confirm filters mid-flow and a SQLite checkpointer for conversation memory
-- [Patchright](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright) — a stealth-patched Playwright
-  fork, since both targets sit behind Cloudflare
-- [FastAPI](https://fastapi.tiangolo.com/) + [Uvicorn](https://www.uvicorn.org/) — the backend
-- [Next.js](https://nextjs.org/) 16 + React 19 + Tailwind v4 — the frontend (dark developer-console
-  theme modelled on Google's `adk-web`)
-- SQLAlchemy 2.0 + SQLite — persistence, plus a Markdown snapshot per scrape under `data/snapshots/`
-- Anthropic + Google GenAI SDKs — the rater backends (Claude uses prompt caching)
-
-## Quickstart
+You need Python 3.12, [uv](https://docs.astral.sh/uv/), and Node.js 20+.
 
 ```bash
-uv sync                          # python backend + domain deps
-uv run patchright install chromium
-make web-install                 # next.js frontend deps (npm)
-cp .env.example .env             # then add your API key(s)
+uv sync                             # install backend dependencies
+uv run patchright install chromium  # the browser used for scraping
+make web-install                    # install frontend dependencies
+cp .env.example .env                # then add your API key(s)
 ```
 
-Requires Python 3.12, [uv](https://docs.astral.sh/uv/), and Node.js 20+.
+You only need a key for the provider you rate with. With just a `GEMINI_API_KEY`, search and rating
+work fully; an `ANTHROPIC_API_KEY` additionally enables the free-form chat assistant.
 
-## Configuration
-
-Settings load from `.env`. Provider keys are read directly; everything else is `VALOR_`-prefixed.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | — | Required for Claude rating and the chat/classifier nodes |
-| `GEMINI_API_KEY` | — | Required to rate with Gemini models |
-| `VALOR_RATER_MODEL` | `gemini-2.5-flash` | Default rater model (also selectable in the UI) |
-| `NEXT_PUBLIC_API_BASE` | `http://localhost:8000` | Backend URL the frontend calls (baked at build) |
-| `VALOR_DB_URL` | `sqlite:///data/valor.db` | Listings, ratings, and evaluations store |
-| `VALOR_CHECKPOINT_DB` | `data/checkpoints.db` | LangGraph conversation checkpoints |
-| `VALOR_HEADLESS` | `true` | Run the browser headless |
-| `VALOR_MAX_PAGES` | `3` | Result pages to crawl per source |
-
-> You only need a key for the provider you actually rate with. With just a Gemini key, search and
-> rating still work; only the free-form chat assistant needs an Anthropic key.
-
-## Running
-
-The fastest path is `make`, which starts the backend and frontend together (Ctrl-C stops both):
+Then start everything (Ctrl-C stops both):
 
 ```bash
-make web-install  # once, to install frontend deps
-make run          # backend (:8000) + next.js dev server (:3000)
-make run-docker   # build the image and run both in one container
+make run
 ```
 
-Then open the frontend at <http://localhost:3000>.
+and open <http://localhost:3000>.
 
-Prefer to run them by hand? They are two processes — in separate terminals:
-
-```bash
-# backend (keep to a single worker — one shared graph + SQLite checkpoint connection)
-uv run uvicorn backend.main:app --app-dir src
-
-# frontend
-cd frontend-web && npm run dev
-```
-
-### Docker
-
-The image bundles the patched Chromium needed for scraping, a uv-managed Python backend, and the
-Next.js frontend built into a standalone Node server:
-
-```bash
-make run-docker
-# or by hand:
-docker build -t valor-auto-agent .
-docker run --rm -it --env-file .env -p 8000:8000 -p 3000:3000 valor-auto-agent
-```
-
-The frontend is served on `:3000` inside the container.
+Prefer Docker? `make run-docker` builds and runs backend + frontend in one container, frontend on
+`:3000`.
 
 ## Using the app
 
-- **Chat** — describe the car; confirm the pre-filled filter form; get the top picks with rationale,
-  source links, and "also on …" badges for cross-posted listings. Tick results to compare them.
-- **Saved & alerts** — save a search with a re-run cadence; the scheduler watches it and lists new
-  matches (the first run sets a baseline so you aren't flooded with existing listings).
-- **Evaluations** — your full rated-car library. Filter by text, score, or status; edit `status`
-  and `notes` inline and they persist.
-- **Sidebar** — pick the rater model, start a fresh chat, and jump between recent sessions.
+- **Chat** — describe the car you want; confirm the pre-filled filter form; watch the progress as
+  it scrapes and rates; get top picks with a score, a rationale, source links, and duplicate
+  badges. Tick results to compare them.
+- **Saved & alerts** — save a search to watch it; the scheduler re-runs it and lists only new
+  matches since you started watching.
+- **Evaluations** — your full rated-car library. Filter by text, score, or status; edit status and
+  notes inline and they stick.
+- **Sidebar** — switch the rater model, start a fresh chat, jump between recent sessions.
 
-## Development
+## Configuration
+
+Settings load from `.env`. The ones you're most likely to touch:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — | Rate with Claude models + the chat assistant |
+| `GEMINI_API_KEY` | — | Rate with Gemini models |
+| `VALOR_RATER_MODEL` | `gemini-2.5-flash` | Default rater (also switchable in the UI) |
+| `VALOR_MAX_PAGES` | `3` | Result pages to crawl per site — more pages, longer searches |
+| `VALOR_HEADLESS` | `true` | Set `false` to watch the scraping browser work |
+| `VALOR_DB_URL` | `sqlite:///data/valor.db` | Where listings, ratings, and evaluations live |
+| `VALOR_CHECKPOINT_DB` | `data/checkpoints.db` | Conversation memory |
+| `NEXT_PUBLIC_API_BASE` | `http://localhost:8000` | Backend URL the frontend calls (baked at build) |
+
+## Good to know
+
+- Built for a single local user — no accounts, no auth.
+- The sites sit behind Cloudflare; very aggressive settings may get throttled.
+- Scores come from comparing the batch against itself — there's no external valuation service.
+- Each search also writes a Markdown snapshot under `data/snapshots/` you can read or diff later.
+- The intent classifier and chat assistant currently run on Claude Haiku regardless of the selected
+  rater model.
+
+## Under the hood
+
+Three tiers with a real HTTP boundary — the UI never touches the database or the agent directly:
+
+```
+browser ──▶ Next.js (frontend-web/) ──fetch──▶ FastAPI (src/backend/)
+                                                  │
+                                        valor_auto_agent (domain core)
+                                     graph · crawler · rater · db · scheduler
+```
+
+- **`src/valor_auto_agent/`** — the domain core: LangGraph orchestration (with `interrupt()` for
+  the filter-confirm step and SQLite checkpoints for conversation memory), the Patchright-driven
+  crawler (a stealth Playwright fork, for the Cloudflare front), the rater and inspector
+  sub-agents, memory, dedupe, and SQLAlchemy/SQLite persistence.
+- **`src/backend/`** — FastAPI + Uvicorn; the only tier that talks to the graph and database.
+  Streams search progress over SSE and hosts the saved-search scheduler. Keep it to a single
+  worker — one shared graph and checkpoint connection.
+- **`frontend-web/`** — Next.js 16 + React 19 + Tailwind v4; a pure HTTP client of the backend.
+
+### Development
 
 ```bash
-make test                # uv run pytest
+make test                # backend test suite (offline)
+uv run pytest -m live    # opt-in tests against the real sites
 make lint                # ruff + next lint
 uv run ruff format .     # format
 ```
 
+CI runs ruff (check + format), mypy, the offline tests, and the frontend lint + build on every PR.
 Conventions: 100-char lines, Python 3.12 target, lowercase comments, and no comments that merely
 restate the code.
-
-## Scope & roadmap
-
-- Single local user — no auth, no multi-tenancy.
-- SQLite only; the SQLAlchemy URL can be pointed at Postgres later if it ever goes multi-user.
-- No external valuation API — the rater works off the scraped batch as its own market context.
-- Cloudflare may throttle aggressive runs; proxy support is a possible follow-up.
-- The intent classifier and chat assistant currently run on Claude Haiku regardless of the selected
-  rater model — making them provider-agnostic is a future improvement.
-```
