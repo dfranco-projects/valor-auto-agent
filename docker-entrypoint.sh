@@ -20,5 +20,5 @@ for _ in $(seq 1 120); do
 done
 
 # the next.js standalone server in the foreground keeps the container alive
-# (HOSTNAME=0.0.0.0 and PORT=8501 are set in the image env)
+# (HOSTNAME=0.0.0.0 and PORT=3000 are set in the image env)
 exec node frontend-web/server.js
