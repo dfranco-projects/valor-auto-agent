@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.orm import Session
+
 from valor_auto_agent import pipeline
 from valor_auto_agent.config import load
 from valor_auto_agent.db.models import Alert, SavedSearch
-from valor_auto_agent.db.session import session
+from valor_auto_agent.db.session import run_db, session
 from valor_auto_agent.subagents.rater import rate_batch
 from valor_auto_agent.tools.crawler.schemas import Filters
 
@@ -108,13 +110,20 @@ def due_saved(now: datetime | None = None) -> list[int]:
 
 async def run_saved(saved_id: int, rater_model: str | None = None) -> list[dict]:
     """crawl a saved search, alert on listings not seen before, return the new alerts."""
-    with session() as s:
+    def _load(s: Session) -> tuple[Filters, set[str], bool] | None:
         ss = s.get(SavedSearch, saved_id)
         if ss is None:
-            return []
-        filters = Filters(**(ss.filters_json or {}))
-        seen = set(ss.seen_ids_json or [])
-        first_run = ss.last_run_at is None
+            return None
+        return (
+            Filters(**(ss.filters_json or {})),
+            set(ss.seen_ids_json or []),
+            ss.last_run_at is None,
+        )
+
+    loaded = await run_db(_load)
+    if loaded is None:
+        return []
+    filters, seen, first_run = loaded
 
     listings = await pipeline.crawl(filters)
 
@@ -122,19 +131,25 @@ async def run_saved(saved_id: int, rater_model: str | None = None) -> list[dict]
         # baseline run: remember what's already listed without alerting, so future runs
         # only flag listings that appear after the search was created
         keys = {_key(li.source, li.external_id) for li in listings}
-        with session() as s:
+
+        def _baseline(s: Session) -> None:
             ss = s.get(SavedSearch, saved_id)
             if ss is not None:
                 ss.seen_ids_json = sorted(seen | keys)
                 ss.last_run_at = datetime.now(UTC)
+
+        await run_db(_baseline)
         return []
 
     new = [li for li in listings if _key(li.source, li.external_id) not in seen]
     if not new:
-        with session() as s:
+
+        def _touch(s: Session) -> None:
             ss = s.get(SavedSearch, saved_id)
             if ss is not None:
                 ss.last_run_at = datetime.now(UTC)
+
+        await run_db(_touch)
         return []
 
     model = rater_model or load().rater_model
@@ -145,11 +160,11 @@ async def run_saved(saved_id: int, rater_model: str | None = None) -> list[dict]
         rated = []
     by_ext = {(r["source"], r["external_id"]): r for r in rated}
 
-    created: list[dict] = []
-    with session() as s:
+    def _store(s: Session) -> list[dict]:
         ss = s.get(SavedSearch, saved_id)
         if ss is None:
             return []
+        created: list[dict] = []
         for li in new:
             r = by_ext.get((li.source, li.external_id)) or {}
             a = Alert(
@@ -169,7 +184,9 @@ async def run_saved(saved_id: int, rater_model: str | None = None) -> list[dict]
             created.append(_alert_dict(a))
         ss.seen_ids_json = sorted(seen | {_key(li.source, li.external_id) for li in new})
         ss.last_run_at = datetime.now(UTC)
-    return created
+        return created
+
+    return await run_db(_store)
 
 
 def list_alerts(user_id: str = DEFAULT_USER, unread_only: bool = False) -> list[dict]:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import select
@@ -21,7 +21,7 @@ def snapshot_search(search_id: int, sess: Session) -> Path:
         select(Listing).where(Listing.search_id == search_id).order_by(Listing.source, Listing.id)
     ).all()
 
-    date = (search.created_at or datetime.utcnow()).strftime("%Y-%m-%d")
+    date = (search.created_at or datetime.now(UTC)).strftime("%Y-%m-%d")
     out = settings.snapshots_dir / f"{search_id:04d}-{date}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(_render(search, listings), encoding="utf-8")
