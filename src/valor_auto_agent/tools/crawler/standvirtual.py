@@ -159,10 +159,13 @@ def _parse_advert(html: str) -> Detail:
         for v in group.get("values") or []:
             if isinstance(v, dict) and v.get("label"):
                 equipment.append(str(v["label"]))
+    # photos carry the downloadable url in "url"; "id" only sometimes doubles as one
     images = [
-        ph["id"]
+        str(u)
         for ph in ((adv.get("images") or {}).get("photos") or [])
-        if isinstance(ph, dict) and ph.get("id")
+        if isinstance(ph, dict)
+        and (u := ph.get("url") or ph.get("id"))
+        and str(u).startswith("http")
     ]
     return Detail(description=desc, images=images, specs=specs, equipment=equipment)
 
