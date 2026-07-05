@@ -28,5 +28,6 @@ data/snapshots/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
-.claude/
-.codegraph/
+# anchored: car-check/.claude (committed skills) must not be swallowed
+/.claude/
+/.codegraph/

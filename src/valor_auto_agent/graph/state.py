@@ -13,6 +13,8 @@ class AgentState(TypedDict, total=False):
     filters_prefill: dict | None
     prefill_note: str | None
     filters: dict | None
+    rate_scope: str | None
+    rate_value: float | None
     search_id: int | None
     listings: list[dict]
     ratings: list[dict]

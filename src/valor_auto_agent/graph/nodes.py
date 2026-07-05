@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -186,9 +187,13 @@ async def collect_filters(state: AgentState) -> dict:
         }
     )
     if isinstance(raw, dict):
+        raw = dict(raw)
+        # rating scope travels alongside the filters but is not a crawl filter
+        scope = raw.pop("rate_scope", None)
+        value = raw.pop("rate_value", None)
         remember(raw)
-        return {"filters": raw}
-    return {"filters": {}}
+        return {"filters": raw, "rate_scope": scope, "rate_value": value}
+    return {"filters": {}, "rate_scope": None, "rate_value": None}
 
 
 def _db_create_search(filters: Filters) -> int:
@@ -271,14 +276,50 @@ def _db_store_ratings(search_id: int, rated: list[dict], model: str) -> None:
         snapshot_search(search_id, s)
 
 
+def _rating_targets(
+    listings: list[Listing], scope: str | None, value: float | None
+) -> list[Listing]:
+    if not scope or scope == "all":
+        return listings
+    if scope == "newest":
+        years = int(value or 3)
+        cutoff = datetime.now(UTC).year - years + 1
+        picked = [li for li in listings if li.year is not None and li.year >= cutoff]
+    elif scope == "cheapest":
+        pct = min(max(float(value or 30), 1), 100)
+        priced = sorted(listings, key=lambda li: li.price_eur if li.price_eur else float("inf"))
+        picked = priced[: max(1, math.ceil(len(listings) * pct / 100))]
+    elif scope == "sample":
+        pct = min(max(float(value or 30), 1), 100)
+        n = max(1, math.ceil(len(listings) * pct / 100))
+        # spread the sample across the price range instead of taking one end of it
+        priced = sorted(listings, key=lambda li: li.price_eur if li.price_eur else float("inf"))
+        step = len(priced) / n
+        picked = [priced[int(i * step)] for i in range(n)]
+    else:
+        log.warning("unknown rate_scope %r — rating everything", scope)
+        return listings
+    if not picked:
+        log.warning("rate_scope %s/%s matched nothing — rating everything", scope, value)
+        return listings
+    return picked
+
+
 async def rate(state: AgentState) -> dict:
     raw = state.get("listings") or []
     listings = [Listing(**li) for li in raw]
     if not listings:
         return {"ratings": []}
     model = state.get("rater_model") or load().rater_model
-    log.info("rate start: %d listings model=%s", len(listings), model)
-    rated = await rate_batch(listings, model=model, lang=state.get("lang"))
+    targets = _rating_targets(listings, state.get("rate_scope"), state.get("rate_value"))
+    log.info(
+        "rate start: %d of %d listings (scope=%s) model=%s",
+        len(targets),
+        len(listings),
+        state.get("rate_scope") or "all",
+        model,
+    )
+    rated = await rate_batch(targets, model=model, lang=state.get("lang"))
     log.info("rate done: %d ratings", len(rated))
     search_id = state.get("search_id")
     if search_id:

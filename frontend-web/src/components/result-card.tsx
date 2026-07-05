@@ -133,9 +133,10 @@ export function ResultCard({
             href={r.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 rounded-md bg-surface-high px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-surface-highest"
+            className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-on-primary"
           >
-            Open ad ↗
+            View on {r.source}
+            <span aria-hidden className="text-[10px]">↗</span>
           </a>
           {r.external_id && (
             <button
