@@ -12,6 +12,7 @@ from valor_auto_agent.tools.crawler.base import extract_apollo_images, fetch_htm
 from valor_auto_agent.tools.crawler.schemas import Detail, Filters, Listing
 
 BASE = "https://www.olx.pt"
+_CARD_SEL = 'div[data-cy="l-card"], div[data-testid="l-card"]'
 log = logging.getLogger(__name__)
 
 
@@ -61,7 +62,7 @@ def parse_cards(html: str) -> list[Listing]:
     # selectors target stable data-cy attributes used by olx group; fall back to structural
     tree = HTMLParser(html)
     out: list[Listing] = []
-    for card in tree.css('div[data-cy="l-card"], div[data-testid="l-card"]'):
+    for card in tree.css(_CARD_SEL):
         a = card.css_first("a")
         if a is None:
             continue
@@ -138,20 +139,32 @@ async def search(filters: Filters, max_pages: int | None = None) -> list[Listing
     settings = load()
     max_pages = max_pages or settings.max_pages
     found: dict[str, Listing] = {}
-    async with with_browser() as ctx:
-        for page in range(1, max_pages + 1):
-            url = build_url(filters, page=page)
+    sem = asyncio.Semaphore(3)
+
+    async def fetch_page(ctx, page: int) -> list[Listing]:
+        url = build_url(filters, page=page)
+        async with sem:
             log.info("olx fetch page %d %s", page, url)
             # scroll to trigger olx's lazy-loaded card images (real src is absent otherwise)
-            html = await fetch_html(ctx, url, scroll=True)
-            if not html:
-                log.warning("olx page %d returned no html (blocked or timed out)", page)
-                break
-            cards = parse_cards(html)
-            log.info("olx page %d -> %d cards", page, len(cards))
-            if not cards:
-                break
-            for c in cards:
-                found.setdefault(c.external_id, c)
-            await asyncio.sleep(1.0)
+            html = await fetch_html(ctx, url, scroll=True, wait_selector=_CARD_SEL)
+        if not html:
+            log.warning("olx page %d returned no html (blocked or timed out)", page)
+            return []
+        cards = parse_cards(html)
+        log.info("olx page %d -> %d cards", page, len(cards))
+        return cards
+
+    async with with_browser() as ctx:
+        pages = await asyncio.gather(
+            *(fetch_page(ctx, p) for p in range(1, max_pages + 1)), return_exceptions=True
+        )
+    # keep page order; an empty/failed page means the results ran out, discard anything after it
+    for cards in pages:
+        if isinstance(cards, BaseException):
+            log.warning("olx page fetch failed: %s", cards)
+            break
+        if not cards:
+            break
+        for c in cards:
+            found.setdefault(c.external_id, c)
     return list(found.values())
