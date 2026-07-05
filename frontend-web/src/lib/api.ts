@@ -1,4 +1,4 @@
-// typed client for the valor-auto-agent FastAPI backend. mirrors src/frontend/api.py.
+// typed client for the valor-auto-agent FastAPI backend. types mirror src/backend/schemas.py.
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 export type Role = "user" | "assistant" | "error";

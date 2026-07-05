@@ -17,7 +17,7 @@ ENV UV_LINK_MODE=copy \
     UV_PYTHON_INSTALL_DIR=/python \
     VALOR_HEADLESS=true \
     HOSTNAME=0.0.0.0 \
-    PORT=8501
+    PORT=3000
 
 WORKDIR /app
 
@@ -40,6 +40,6 @@ COPY --from=web /web/public ./frontend-web/public
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 8000 8501
+EXPOSE 8000 3000
 
 ENTRYPOINT ["docker-entrypoint.sh"]

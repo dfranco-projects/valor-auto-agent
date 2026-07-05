@@ -1,4 +1,4 @@
-// ported from src/frontend/labels.py — slugs match olx.pt / standvirtual.pt brand paths.
+// display labels for models and brands — slugs match olx.pt / standvirtual.pt brand paths.
 export const MODEL_LABELS: Record<string, string> = {
   "claude-opus-4-8": "Claude Opus 4.8",
   "claude-sonnet-4-6": "Claude Sonnet 4.6",

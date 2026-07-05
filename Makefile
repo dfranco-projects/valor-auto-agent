@@ -1,4 +1,4 @@
-.PHONY: run web-install docker-build run-docker
+.PHONY: run web-install test lint docker-build run-docker
 
 IMAGE := valor-auto-agent
 ENV_FILE := $(if $(wildcard .env),--env-file .env,)
@@ -15,9 +15,16 @@ run:
 	trap 'kill $$backend_pid 2>/dev/null' EXIT; \
 	cd frontend-web && npm run dev
 
+test:
+	uv run pytest
+
+lint:
+	uv run ruff check .
+	cd frontend-web && npm run lint
+
 docker-build:
 	docker build -t $(IMAGE) .
 
 # build the image and run backend + frontend in one container
 run-docker: docker-build
-	docker run --rm -it $(ENV_FILE) -p 8000:8000 -p 8501:8501 $(IMAGE)
+	docker run --rm -it $(ENV_FILE) -p 8000:8000 -p 3000:3000 $(IMAGE)

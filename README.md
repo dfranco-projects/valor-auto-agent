@@ -124,10 +124,10 @@ Next.js frontend built into a standalone Node server:
 make run-docker
 # or by hand:
 docker build -t valor-auto-agent .
-docker run --rm -it --env-file .env -p 8000:8000 -p 8501:8501 valor-auto-agent
+docker run --rm -it --env-file .env -p 8000:8000 -p 3000:3000 valor-auto-agent
 ```
 
-The frontend is served on `:8501` inside the container.
+The frontend is served on `:3000` inside the container.
 
 ## Using the app
 
@@ -142,8 +142,9 @@ The frontend is served on `:8501` inside the container.
 ## Development
 
 ```bash
-uv run pytest                                  # tests
-uv run ruff check . && uv run ruff format .    # lint + format
+make test                # uv run pytest
+make lint                # ruff + next lint
+uv run ruff format .     # format
 ```
 
 Conventions: 100-char lines, Python 3.12 target, lowercase comments, and no comments that merely
