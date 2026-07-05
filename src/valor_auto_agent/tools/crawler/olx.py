@@ -125,14 +125,23 @@ def parse_cards(html: str) -> list[Listing]:
     return out
 
 
+def _parse_detail(html: str) -> Detail:
+    tree = HTMLParser(html)
+    el = tree.css_first('[data-cy="ad_description"]')
+    desc = el.text(separator=" ", strip=True) if el else ""
+    # scope photo extraction to the gallery container: the page also embeds apollo-hosted
+    # thumbnails of RELATED listings, which would pollute the ad's photo set and count
+    gallery = tree.css_first('[data-testid="image-galery-container"]')
+    return Detail(
+        description=desc,
+        images=extract_apollo_images(gallery.html if gallery else html, limit=30),
+    )
+
+
 async def fetch_detail(ctx, url: str) -> Detail:
     """parse an olx ad page into a description + photo gallery (olx has few structured specs)."""
     html = await fetch_html(ctx, url, scroll=True)
-    if not html:
-        return Detail()
-    el = HTMLParser(html).css_first('[data-cy="ad_description"]')
-    desc = el.text(separator=" ", strip=True) if el else ""
-    return Detail(description=desc, images=extract_apollo_images(html, limit=30))
+    return _parse_detail(html) if html else Detail()
 
 
 async def search(filters: Filters, max_pages: int | None = None) -> list[Listing]:

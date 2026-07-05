@@ -53,6 +53,25 @@ def test_sv_parse_advert_extracts_specs_desc_equipment_photos():
     assert d.images == ["https://img/1.jpg", "https://img/2.jpg"]
 
 
+def test_olx_parse_detail_scopes_photos_to_the_gallery():
+    html = (
+        "<html><body>"
+        '<div data-testid="image-galery-container">'
+        f'<img src="{_A}/real-PT/image;s=1024x768"></div>'
+        '<div data-cy="ad_description">Carro impecável</div>'
+        f'<div class="related"><img src="{_A}/other-ad-PT/image;s=268x201"></div>'
+        "</body></html>"
+    )
+    d = olx._parse_detail(html)
+    assert d.description == "Carro impecável"
+    assert d.images == [f"{_A}/real-PT/image;s=1024x768"]  # related-ad thumbnail excluded
+
+
+def test_olx_parse_detail_falls_back_to_whole_page_without_gallery():
+    html = f'<html><body><img src="{_A}/only-PT/image;s=1024x768"></body></html>'
+    assert olx._parse_detail(html).images == [f"{_A}/only-PT/image;s=1024x768"]
+
+
 def test_parse_olx_card():
     html = (FIXTURES / "olx_card.html").read_text()
     cards = olx.parse_cards(html)
