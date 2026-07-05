@@ -52,16 +52,20 @@ def _context(li: Listing, detail: Detail, shown: int, lang: str | None) -> str:
 
 
 async def _fetch_details(targets: list[Listing]) -> dict[tuple[str, str], Detail]:
-    out: dict[tuple[str, str], Detail] = {}
-    async with with_browser() as ctx:
-        for li in targets:
-            fetcher = olx.fetch_detail if li.source == "olx" else standvirtual.fetch_detail
+    sem = asyncio.Semaphore(load().max_detail_concurrency)
+
+    async def one(ctx, li: Listing) -> tuple[tuple[str, str], Detail]:
+        fetcher = olx.fetch_detail if li.source == "olx" else standvirtual.fetch_detail
+        async with sem:
             try:
-                out[(li.source, li.external_id)] = await fetcher(ctx, li.url)
+                return (li.source, li.external_id), await fetcher(ctx, li.url)
             except Exception as e:
                 log.warning("detail fetch failed %s: %s", li.url, e)
-                out[(li.source, li.external_id)] = Detail()
-    return out
+                return (li.source, li.external_id), Detail()
+
+    async with with_browser() as ctx:
+        pairs = await asyncio.gather(*(one(ctx, li) for li in targets))
+    return dict(pairs)
 
 
 async def _download(http: httpx.AsyncClient, urls: list[str]) -> list[bytes]:
