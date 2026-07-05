@@ -44,3 +44,12 @@ Input: one ad URL (from the user's message or `$ARGUMENTS`).
 
 6. **Score** with `car-check/RUBRIC.md` — follow its procedure and output format
    exactly. The rubric overrides any instinct to be nice or match the user's mood.
+
+7. **Persist the verdict** so future sessions can recall it without re-fetching:
+   - Write `car-check/ads/<ad-id>/rating.md`: date, price at rating time, the full
+     rubric output, and any extra notes/observations worth keeping (photo-number
+     citations included). If the file exists, APPEND a new dated entry — never
+     overwrite; the history shows price drops and relisting games.
+   - Update the ledger `car-check/ads/index.md` (create if missing): one line per ad,
+     `- YYYY-MM-DD · score X.X · title · price€ · [folder](./<ad-id>/) · url` —
+     replace the ad's existing line so the ledger shows the latest verdict.

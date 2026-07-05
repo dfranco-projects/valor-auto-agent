@@ -50,3 +50,9 @@ constraints the user states (year window, fuel, transmission, budget).
    ```
    Apply `car-check/RUBRIC.md` discipline throughout: only verified facts move the
    verdict, and the user's fondness for the subject car counts for nothing.
+
+7. **Persist**: write the full comparison to
+   `car-check/comparisons/YYYY-MM-DD-<subject-id>-vs-<rival-or-peers>.md`, and for
+   every car you deep-fetched and scored, persist its individual verdict exactly as
+   the `rate-ad` skill does (append to `ads/<id>/rating.md`, refresh its line in
+   `ads/index.md`).

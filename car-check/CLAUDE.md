@@ -31,8 +31,22 @@ rating), `compare-car` (one ad vs same-model/similar-year peers). One-time setup
 the browser is missing:
 `uv run patchright install chromium`.
 
+## Memory — check it BEFORE fetching anything
+
+`ads/index.md` is the ledger of every car ever rated (latest score, price, folder).
+At the start of any rate/compare request, check whether the ad is already there:
+
+- Already rated → reuse `ads/<ad-id>/` (data + `rating.md` history) instead of
+  re-fetching; re-fetch only if the user asks for a fresh look or wants to check
+  for price drops — then APPEND the new verdict to `rating.md`, never overwrite.
+- Questions like "what did we think of that 118d?" or "which cars have we rated
+  under 10k?" are answered entirely from the ledger and rating files — no fetching.
+
 ## Outputs
 
 `ads/<ad-id>/` — `ad.json`, `description.txt`, `page.txt` (title/price/seller),
-`photos/NN.jpg`. `searches/<timestamp>.json` — listings + fixed `market_reference`.
-Both dirs are scratch data (gitignored); safe to delete.
+`photos/NN.jpg`, plus `rating.md` (dated verdict history — the persistence layer).
+`ads/index.md` — the ledger. `searches/<timestamp>.json` — listings + fixed
+`market_reference`. `comparisons/*.md` — saved comparison verdicts. All local and
+gitignored; scraped data is disposable, but `rating.md`/`index.md`/`comparisons/`
+are your memory — don't delete them casually.
