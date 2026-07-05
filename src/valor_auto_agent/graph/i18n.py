@@ -38,7 +38,18 @@ _MSGS = {
 
 # fallback heuristic for the offline path; the extractor llm returns the language otherwise
 _PT_HINTS = (
-    "ç", "ã", "õ", "á", "é", " até ", " carro", " quero", " procuro", " barato", " com ", " sob "
+    "ç",
+    "ã",
+    "õ",
+    "á",
+    "é",
+    " até ",
+    " carro",
+    " quero",
+    " procuro",
+    " barato",
+    " com ",
+    " sob ",
 )
 
 

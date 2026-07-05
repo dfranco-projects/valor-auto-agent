@@ -29,7 +29,7 @@ async def crawl(filters: Filters) -> list[Listing]:
     )
     listings: list[Listing] = []
     for name, r in zip(("olx", "standvirtual"), results, strict=True):
-        if isinstance(r, Exception):
+        if isinstance(r, BaseException):
             log.warning("crawl %s failed: %r", name, r)
             continue
         log.info("crawl %s -> %d listings", name, len(r))

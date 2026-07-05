@@ -142,7 +142,8 @@ async def _rate_gemini(settings: Settings, model: str, user_msg: str) -> str:
             seed=42,
         ),
     )
-    finish = getattr((resp.candidates or [None])[0], "finish_reason", None)
+    cands = resp.candidates or []
+    finish = getattr(cands[0], "finish_reason", None) if cands else None
     log.info("gemini finish_reason=%s text_len=%d", finish, len(resp.text or ""))
     return resp.text or ""
 
@@ -185,7 +186,11 @@ async def _rate_chunk(
                     delay = _retry_after(e, attempt)
                     log.warning(
                         "rate chunk (%d listings) %s — retry %d/%d in %.0fs",
-                        len(chunk), type(e).__name__, attempt + 1, _MAX_ATTEMPTS - 1, delay,
+                        len(chunk),
+                        type(e).__name__,
+                        attempt + 1,
+                        _MAX_ATTEMPTS - 1,
+                        delay,
                     )
                     await asyncio.sleep(delay)
                     continue
@@ -206,9 +211,7 @@ async def rate_batch(
     chunks = [listings[i : i + _CHUNK] for i in range(0, len(listings), _CHUNK)]
     sem = asyncio.Semaphore(_CONCURRENCY)
     log.info("rate_batch start: %d listings via %s in %d chunks", len(listings), model, len(chunks))
-    results = await asyncio.gather(
-        *(_rate_chunk(settings, model, c, context, sem) for c in chunks)
-    )
+    results = await asyncio.gather(*(_rate_chunk(settings, model, c, context, sem) for c in chunks))
     rated = [r for chunk in results for r in chunk]
     log.info("rate_batch done: parsed %d ratings", len(rated))
     return rated

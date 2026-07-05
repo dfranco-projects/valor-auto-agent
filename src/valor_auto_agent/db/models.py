@@ -129,9 +129,7 @@ class Alert(Base):
     __tablename__ = "alert"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    saved_search_id: Mapped[int] = mapped_column(
-        ForeignKey("saved_search.id", ondelete="CASCADE")
-    )
+    saved_search_id: Mapped[int] = mapped_column(ForeignKey("saved_search.id", ondelete="CASCADE"))
     source: Mapped[str] = mapped_column(String(32))
     external_id: Mapped[str] = mapped_column(String(128))
     title: Mapped[str] = mapped_column(String(512))

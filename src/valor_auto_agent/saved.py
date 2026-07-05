@@ -77,9 +77,7 @@ def list_saved(user_id: str = DEFAULT_USER) -> list[dict]:
         out = []
         for ss in rows:
             unread = (
-                s.query(Alert)
-                .filter(Alert.saved_search_id == ss.id, Alert.read.is_(False))
-                .count()
+                s.query(Alert).filter(Alert.saved_search_id == ss.id, Alert.read.is_(False)).count()
             )
             out.append(_saved_dict(ss, unread))
         return out
@@ -110,6 +108,7 @@ def due_saved(now: datetime | None = None) -> list[int]:
 
 async def run_saved(saved_id: int, rater_model: str | None = None) -> list[dict]:
     """crawl a saved search, alert on listings not seen before, return the new alerts."""
+
     def _load(s: Session) -> tuple[Filters, set[str], bool] | None:
         ss = s.get(SavedSearch, saved_id)
         if ss is None:

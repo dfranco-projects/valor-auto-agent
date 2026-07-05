@@ -14,9 +14,7 @@ from valor_auto_agent.config import load
 log = logging.getLogger(__name__)
 
 # both olx and standvirtual host photos on the same apollo cdn (...;s=WxH sizing suffix)
-_APOLLO_RX = re.compile(
-    r"https://ireland\.apollo\.olxcdn\.com[^\s\"'\\<>]+?image;s=\d+x\d+"
-)
+_APOLLO_RX = re.compile(r"https://ireland\.apollo\.olxcdn\.com[^\s\"'\\<>]+?image;s=\d+x\d+")
 
 
 def extract_apollo_images(html: str, limit: int = 4) -> list[str]:
@@ -32,6 +30,7 @@ def extract_apollo_images(html: str, limit: int = 4) -> list[str]:
         if len(out) >= limit:
             break
     return out
+
 
 _UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 "
@@ -74,7 +73,7 @@ async def _autoscroll(page, max_steps: int = 15, pause: int = 200) -> None:
     # wait until the lazy images have swapped in their real src (count stabilises), max ~2s
     last_n = -1
     for _ in range(8):
-        n = await page.evaluate('document.querySelectorAll(\'img[src^="http"]\').length')
+        n = await page.evaluate("document.querySelectorAll('img[src^=\"http\"]').length")
         if n == last_n:
             break
         last_n = n
