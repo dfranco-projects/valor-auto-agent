@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/sidebar";
 import { FilterForm } from "@/components/filter-form";
 import { ResultCard } from "@/components/result-card";
+import { ResultSkeletons } from "@/components/result-skeleton";
 import { CompareTable } from "@/components/compare-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,19 @@ interface Msg {
   role: Role;
   content: string;
 }
+
+// live progress labels keyed by graph node names streamed from the backend
+const PHASE_LABELS: Record<string, string> = {
+  decide: "thinking…",
+  extract_filters: "reading your request…",
+  collect_filters: "preparing the filter form…",
+  scrape: "scraping olx + standvirtual…",
+  rate: "rating every listing for value…",
+  inspect: "inspecting the top candidates…",
+  present: "putting the picks together…",
+  chat: "replying…",
+};
+const PIPELINE_PHASES = new Set(["scrape", "rate", "inspect", "present"]);
 
 const EXAMPLES = [
   "find me a bmw 320d under 10k",
@@ -42,6 +56,7 @@ export default function Page() {
   const [cfg, setCfg] = useState<ConfigOut | null>(null);
   const [raterModel, setRaterModel] = useState("");
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [raterDown, setRaterDown] = useState(false);
@@ -91,7 +106,7 @@ export default function Page() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [history, top, pendingFilters]);
+  }, [history, top, pendingFilters, phase]);
 
   const apply = (res: SearchResponse) => {
     if (res.status === "need_filters") {
@@ -128,13 +143,14 @@ export default function Page() {
     }
     setBusy(true);
     try {
-      const res = await api.postSearch(threadId, prompt, raterModel);
+      const res = await api.streamSearch(threadId, prompt, raterModel, setPhase);
       apply(res);
       refreshSessions();
     } catch (e) {
       push("error", `Something went wrong: ${e}`);
     } finally {
       setBusy(false);
+      setPhase(null);
     }
   };
 
@@ -142,11 +158,12 @@ export default function Page() {
     setBusy(true);
     try {
       // the backend reply is localized (incl. the no-results / rate-limited cases); just show it
-      apply(await api.postResume(threadId, filters));
+      apply(await api.streamResume(threadId, filters, setPhase));
     } catch (e) {
       push("error", `Scrape failed: ${e}`);
     } finally {
       setBusy(false);
+      setPhase(null);
     }
   };
 
@@ -179,6 +196,8 @@ export default function Page() {
     submit(text);
   };
   const empty = history.length === 0 && top.length === 0 && !pendingFilters && !busy;
+  // the scrape→rate→inspect→present run is underway: swap stale picks for skeletons
+  const pipelineRunning = busy && phase != null && PIPELINE_PHASES.has(phase);
 
   return (
     <div className="flex h-screen">
@@ -223,7 +242,7 @@ export default function Page() {
               {busy && (
                 <div className="flex items-center gap-2.5 px-1 text-sm text-muted animate-rise">
                   <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
-                  {pendingFilters ? "scraping olx + standvirtual, then rating…" : "working…"}
+                  {(phase && PHASE_LABELS[phase]) || "working…"}
                 </div>
               )}
 
@@ -236,7 +255,9 @@ export default function Page() {
                 />
               )}
 
-              {top.length > 0 && (
+              {pipelineRunning && <ResultSkeletons />}
+
+              {!pipelineRunning && top.length > 0 && (
                 <section className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
