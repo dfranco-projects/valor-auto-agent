@@ -148,9 +148,9 @@ async def _rate_gemini(settings: Settings, model: str, user_msg: str) -> str:
     return resp.text or ""
 
 
-# rate in chunks, but cap concurrency and retry on rate-limit/overload: one giant call is slow
+# rate in chunks, but cap concurrency and retry transient failures: one giant call is slow
 # and risks truncation, while firing every chunk at once trips the provider's per-minute quota.
-_CHUNK = 40
+_CHUNK = 20
 _TIMEOUT_S = 90
 _CONCURRENCY = 3
 _MAX_ATTEMPTS = 2
@@ -158,6 +158,9 @@ _RETRY_RX = re.compile(r"retry in ([\d.]+)s")
 
 
 def _retryable(e: Exception) -> bool:
+    # timeouts and malformed/empty json are as transient as rate limits — a rerun usually succeeds
+    if isinstance(e, TimeoutError | ValueError):
+        return True
     s = str(e)
     return any(k in s for k in ("429", "RESOURCE_EXHAUSTED", "503", "UNAVAILABLE"))
 
@@ -194,7 +197,12 @@ async def _rate_chunk(
                     )
                     await asyncio.sleep(delay)
                     continue
-                log.warning("rate chunk failed (%d listings) — skipping: %s", len(chunk), e)
+                log.warning(
+                    "rate chunk failed (%d listings) — skipping: %s: %s",
+                    len(chunk),
+                    type(e).__name__,
+                    e,
+                )
                 return []
     return []
 

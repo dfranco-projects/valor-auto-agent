@@ -134,7 +134,7 @@ def _parse_detail(html: str) -> Detail:
     gallery = tree.css_first('[data-testid="image-galery-container"]')
     return Detail(
         description=desc,
-        images=extract_apollo_images(gallery.html if gallery else html, limit=30),
+        images=extract_apollo_images((gallery.html if gallery else None) or html, limit=30),
     )
 
 

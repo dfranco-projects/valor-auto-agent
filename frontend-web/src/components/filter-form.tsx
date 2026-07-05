@@ -11,6 +11,14 @@ import { Card } from "./ui/card";
 const str = (v: Filters[string] | undefined, fallback = "") =>
   v == null ? fallback : String(v);
 
+// how much of the scraped batch gets llm-rated; value meaning depends on the scope
+const RATE_SCOPES = [
+  { id: "all", label: "all listings", valueLabel: null, default: "" },
+  { id: "newest", label: "newest cars", valueLabel: "registered in last … years", default: "3" },
+  { id: "cheapest", label: "cheapest", valueLabel: "cheapest … % by price", default: "30" },
+  { id: "sample", label: "even sample", valueLabel: "sample … % across prices", default: "30" },
+] as const;
+
 export function FilterForm({
   prefill,
   note,
@@ -40,6 +48,13 @@ export function FilterForm({
     location: str(p.location),
   });
   const set = (k: keyof typeof v, val: string) => setV((s) => ({ ...s, [k]: val }));
+  const [rateScope, setRateScope] = useState<(typeof RATE_SCOPES)[number]["id"]>("all");
+  const [rateValue, setRateValue] = useState("");
+  const scopeDef = RATE_SCOPES.find((s) => s.id === rateScope)!;
+  const pickScope = (id: (typeof RATE_SCOPES)[number]["id"]) => {
+    setRateScope(id);
+    setRateValue(RATE_SCOPES.find((s) => s.id === id)!.default);
+  };
 
   const submit = () => {
     const raw: Filters = {
@@ -54,7 +69,14 @@ export function FilterForm({
       transmission: v.transmission || null,
       location: v.location || null,
     };
-    onSubmit(Object.fromEntries(Object.entries(raw).filter(([, x]) => x !== null && x !== "")));
+    const clean = Object.fromEntries(
+      Object.entries(raw).filter(([, x]) => x !== null && x !== ""),
+    );
+    if (rateScope !== "all") {
+      clean.rate_scope = rateScope;
+      if (rateValue) clean.rate_value = Number(rateValue);
+    }
+    onSubmit(clean);
   };
 
   return (
@@ -111,6 +133,28 @@ export function FilterForm({
             ))}
           </Select>
         </Field>
+        <Field label="rate">
+          <Select
+            value={rateScope}
+            onChange={(e) => pickScope(e.target.value as (typeof RATE_SCOPES)[number]["id"])}
+          >
+            {RATE_SCOPES.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {scopeDef.valueLabel && (
+          <Field label={scopeDef.valueLabel}>
+            <Input
+              type="number"
+              min={1}
+              value={rateValue}
+              onChange={(e) => setRateValue(e.target.value)}
+            />
+          </Field>
+        )}
       </div>
       <Button className="mt-4 w-full" onClick={submit} disabled={busy}>
         {busy ? (busyLabel ?? "Scraping olx + standvirtual…") : (submitLabel ?? "Scrape")}
