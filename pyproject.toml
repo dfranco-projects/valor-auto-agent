@@ -49,3 +49,8 @@ ignore = ["B008"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "live: hits the real olx.pt / standvirtual sites (opt in with `pytest -m live`)",
+]
+# skip live tests by default; an explicit `-m live` on the cli overrides this
+addopts = "-m 'not live'"
