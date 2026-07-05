@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import statistics
+from functools import lru_cache
 from pathlib import Path
 
 from anthropic import AsyncAnthropic
@@ -19,7 +20,9 @@ log = logging.getLogger(__name__)
 _PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "rater.md"
 
 
+@lru_cache(maxsize=1)
 def _system_prompt() -> str:
+    # cached: called on every rating chunk (and by inspector/nodes) — the prompt file is static
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
@@ -80,7 +83,11 @@ def _parse(raw: str) -> list[dict]:
     s = s.strip()
     if not s.startswith("["):
         s = "[" + s
-    return json.loads(s)
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError as e:
+        log.warning("rater response is not valid json (%s); head: %.200s", e, s)
+        raise
 
 
 async def _rate_anthropic(settings: Settings, model: str, user_msg: str) -> str:

@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,6 +22,9 @@ class Settings(BaseSettings):
     rater_model: str = "gemini-2.5-flash"
 
 
+# cached: load() is called per graph node/request/crawler search, and re-running load_dotenv()
+# + mkdir() every time is wasted io. tests that set VALOR_* env vars call load.cache_clear().
+@lru_cache(maxsize=1)
 def load() -> Settings:
     import os
 
