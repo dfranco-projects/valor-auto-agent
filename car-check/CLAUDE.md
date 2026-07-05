@@ -26,8 +26,9 @@ repo's crawler as CLI tools plus a strict rating rubric.
 | fetch ONE ad (desc + specs + all photos) | `uv run python car-check/tools/fetch_ad.py "<url>"` → `car-check/ads/<id>/` |
 | search both sites with filters | `uv run python car-check/tools/search_ads.py --brand ... --model ...` → `car-check/searches/<ts>.json` |
 
-Skills: `rate-ad` (single URL, deep photo inspection) and `search-cars` (search +
-batch rating). One-time setup if the browser is missing:
+Skills: `rate-ad` (single URL, deep photo inspection), `search-cars` (search + batch
+rating), `compare-car` (one ad vs same-model/similar-year peers). One-time setup if
+the browser is missing:
 `uv run patchright install chromium`.
 
 ## Outputs
