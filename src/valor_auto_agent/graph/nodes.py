@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import UTC, datetime
@@ -18,7 +19,9 @@ from valor_auto_agent.db.models import Listing as DbListing
 from valor_auto_agent.db.models import Rating as DbRating
 from valor_auto_agent.db.models import Search
 from valor_auto_agent.db.session import session
+from valor_auto_agent.graph.i18n import _guess_lang, _msgs
 from valor_auto_agent.memory import recall_defaults, remember
+from valor_auto_agent.subagents.inspector import inspect_listings
 from valor_auto_agent.subagents.rater import _gemini_client, rate_batch
 from valor_auto_agent.tools.crawler.schemas import Filters, Listing
 from valor_auto_agent.tools.dedupe import also_on
@@ -134,64 +137,13 @@ def _coerce_filters(data: dict) -> dict:
             try:
                 Filters(**{k: v})
                 clean[k] = v
-            except Exception:
-                continue
+            except Exception as e:
+                log.warning("dropping invalid filter %s=%r: %r", k, v, e)
         return clean
 
 
 def _humanize(d: dict) -> str:
     return ", ".join(f"{k}={v}" for k, v in d.items())
-
-
-# user-facing agent messages, localized to the language the user wrote in (en/pt for now).
-_MSGS = {
-    "en": {
-        "couldnt_read": "i couldn't read specific filters — fill the form to start the scrape.",
-        "read": "read",
-        "from_prefs": "from your usual prefs",
-        "confirm": "confirm or adjust below.",
-        "no_listings": "no listings matched the filters",
-        "found": "found {n} matches — here are the top {k}:",
-        "rate_limited": (
-            "found {n} listings, but the rater hit its rate limit — showing them unrated for now "
-            "(try again in a bit, or pick another model in settings)."
-        ),
-        "filters_needed": "filters needed — confirm to start the scrape",
-        "no_key": "no rater api key is configured — i can only chat once a provider key is set.",
-    },
-    "pt": {
-        "couldnt_read": (
-            "não percebi filtros específicos — preenche o formulário para iniciar a pesquisa."
-        ),
-        "read": "li",
-        "from_prefs": "das tuas preferências habituais",
-        "confirm": "confirma ou ajusta em baixo.",
-        "no_listings": "nenhum anúncio corresponde a estes filtros",
-        "found": "encontrei {n} resultados — aqui estão os {k} melhores:",
-        "rate_limited": (
-            "encontrei {n} anúncios, mas a avaliação atingiu o limite do modelo — a mostrar sem "
-            "pontuação por agora (tenta novamente daqui a pouco, ou escolhe outro modelo)."
-        ),
-        "filters_needed": "preciso dos filtros — confirma para iniciar a pesquisa",
-        "no_key": (
-            "não há nenhuma chave de api configurada — só posso conversar quando definires uma."
-        ),
-    },
-}
-
-# fallback heuristic for the offline path; the extractor llm returns the language otherwise
-_PT_HINTS = (
-    "ç", "ã", "õ", "á", "é", " até ", " carro", " quero", " procuro", " barato", " com ", " sob "
-)
-
-
-def _guess_lang(text: str) -> str:
-    t = f" {text.lower()} "
-    return "pt" if any(h in t for h in _PT_HINTS) else "en"
-
-
-def _msgs(lang: str | None) -> dict:
-    return _MSGS.get((lang or "en")[:2], _MSGS["en"])
 
 
 def _prefill_note(extracted: dict, recalled: dict, prefill: dict, lang: str) -> str:
@@ -238,8 +190,7 @@ async def collect_filters(state: dict) -> dict:
     return {"filters": {}}
 
 
-async def scrape(state: dict) -> dict:
-    filters = Filters(**(state.get("filters") or {}))
+def _db_create_search(filters: Filters) -> int:
     with session() as s:
         search = Search(
             filters_json=filters.model_dump(exclude_none=True),
@@ -249,12 +200,10 @@ async def scrape(state: dict) -> dict:
         )
         s.add(search)
         s.flush()
-        search_id = search.id
+        return search.id
 
-    log.info("scrape start filters=%s", filters.model_dump(exclude_none=True))
-    listings = await pipeline.crawl(filters)
-    log.info("scrape total %d listings", len(listings))
 
+def _db_store_listings(search_id: int, listings: list[Listing]) -> None:
     with session() as s:
         for li in listings:
             s.add(
@@ -281,10 +230,44 @@ async def scrape(state: dict) -> dict:
             search.status = "scraped"
         snapshot_search(search_id, s)
 
+
+async def scrape(state: dict) -> dict:
+    filters = Filters(**(state.get("filters") or {}))
+    search_id = await asyncio.to_thread(_db_create_search, filters)
+
+    log.info("scrape start filters=%s", filters.model_dump(exclude_none=True))
+    listings = await pipeline.crawl(filters)
+    log.info("scrape total %d listings", len(listings))
+
+    await asyncio.to_thread(_db_store_listings, search_id, listings)
+
     return {
         "search_id": search_id,
         "listings": [li.model_dump(mode="json") for li in listings],
     }
+
+
+def _db_store_ratings(search_id: int, rated: list[dict], model: str) -> None:
+    with session() as s:
+        by_ext = {(r["source"], r["external_id"]): r for r in rated}
+        db_listings = s.query(DbListing).filter(DbListing.search_id == search_id).all()
+        for dbl in db_listings:
+            key = (dbl.source, dbl.external_id)
+            r = by_ext.get(key)
+            if not r:
+                continue
+            s.add(
+                DbRating(
+                    listing_id=dbl.id,
+                    score=float(r["score"]),
+                    rationale=str(r.get("rationale", "")),
+                    model=model,
+                )
+            )
+        search = s.get(Search, search_id)
+        if search is not None:
+            search.status = "rated"
+        snapshot_search(search_id, s)
 
 
 async def rate(state: dict) -> dict:
@@ -298,39 +281,13 @@ async def rate(state: dict) -> dict:
     log.info("rate done: %d ratings", len(rated))
     search_id = state.get("search_id")
     if search_id:
-        with session() as s:
-            by_ext = {(r["source"], r["external_id"]): r for r in rated}
-            db_listings = s.query(DbListing).filter(DbListing.search_id == search_id).all()
-            for dbl in db_listings:
-                key = (dbl.source, dbl.external_id)
-                r = by_ext.get(key)
-                if not r:
-                    continue
-                s.add(
-                    DbRating(
-                        listing_id=dbl.id,
-                        score=float(r["score"]),
-                        rationale=str(r.get("rationale", "")),
-                        model=model,
-                    )
-                )
-            search = s.get(Search, search_id)
-            if search is not None:
-                search.status = "rated"
-            snapshot_search(search_id, s)
+        await asyncio.to_thread(_db_store_ratings, search_id, rated, model)
     return {"ratings": rated}
 
 
-async def inspect(state: dict) -> dict:
-    # deep pass: re-score the highest-ranked photographed listings from their gallery + description
-    settings = load()
-    model = state.get("rater_model") or settings.rater_model
-    ratings = state.get("ratings") or []
-    if not ratings or not model.startswith("gemini"):
-        return {}
-    listings = {
-        (li["source"], li["external_id"]): Listing(**li) for li in state.get("listings", [])
-    }
+def _inspection_targets(ratings: list[dict], raw_listings: list[dict]) -> list[Listing]:
+    # highest-ranked photographed listings, capped at 6
+    listings = {(li["source"], li["external_id"]): Listing(**li) for li in raw_listings}
     photographed = [
         (r, listings[(r["source"], r["external_id"])])
         for r in ratings
@@ -341,15 +298,10 @@ async def inspect(state: dict) -> dict:
     photographed.sort(
         key=lambda rl: (rl[0]["source"] != "standvirtual", -float(rl[0].get("score") or 0))
     )
-    targets = [li for _, li in photographed[:6]]
-    if not targets:
-        return {}
+    return [li for _, li in photographed[:6]]
 
-    from valor_auto_agent.subagents.inspector import inspect_listings
 
-    log.info("inspect %d top listings via %s", len(targets), model)
-    refined = await inspect_listings(targets, model, lang=state.get("lang"))
-    log.info("inspect refined %d listings", len(refined))
+def _merge_refined(ratings: list[dict], refined: list[dict]) -> list[dict]:
     by_key = {(r["source"], r["external_id"]): dict(r) for r in ratings}
     for ref in refined:
         row = by_key.get((ref["source"], ref["external_id"]))
@@ -357,20 +309,30 @@ async def inspect(state: dict) -> dict:
             row["score"] = ref["score"]
             row["rationale"] = ref["rationale"]
             row["inspected"] = True
-    return {"ratings": list(by_key.values())}
+    return list(by_key.values())
 
 
-async def present(state: dict) -> dict:
-    raw_listings = [Listing(**li) for li in state.get("listings", [])]
-    dup_idx = also_on(raw_listings)
-    dups = {
-        (raw_listings[i].source, raw_listings[i].external_id): v for i, v in dup_idx.items()
-    }
-    ratings = {(r["source"], r["external_id"]): r for r in (state.get("ratings") or [])}
+async def inspect(state: dict) -> dict:
+    # deep pass: re-score the highest-ranked photographed listings from their gallery + description
+    settings = load()
+    model = state.get("rater_model") or settings.rater_model
+    ratings = state.get("ratings") or []
+    if not ratings or not model.startswith("gemini"):
+        return {}
+    targets = _inspection_targets(ratings, state.get("listings", []))
+    if not targets:
+        return {}
+    log.info("inspect %d top listings via %s", len(targets), model)
+    refined = await inspect_listings(targets, model, lang=state.get("lang"))
+    log.info("inspect refined %d listings", len(refined))
+    return {"ratings": _merge_refined(ratings, refined)}
+
+
+def _enrich_listings(raw: list[dict], ratings: dict, dups: dict) -> list[dict[str, Any]]:
     # listing-centric: every crawled car is shown, with its rating attached when available, so a
     # rating failure (e.g. provider rate limit) degrades to unrated results instead of an empty page
     enriched: list[dict[str, Any]] = []
-    for li in state.get("listings", []):
+    for li in raw:
         key = (li["source"], li["external_id"])
         r = ratings.get(key)
         enriched.append(
@@ -392,14 +354,39 @@ async def present(state: dict) -> dict:
         )
     # rated first (highest score), then unrated by cheapest price
     enriched.sort(key=lambda x: (x["score"] is None, -(x["score"] or 0), x["price_eur"] or 1e12))
+    return enriched
+
+
+def _db_evaluation_statuses() -> dict[tuple[str, str], str]:
+    with session() as s:
+        return {(e.source, e.external_id): e.status for e in s.query(DbEvaluation).all()}
+
+
+def _summarize(enriched: list[dict], top: list[dict], lang: str | None) -> str:
+    # keep the chat reply short — the top picks render as cards in the ui, don't dump them as text
+    m = _msgs(lang)
+    if not enriched:
+        return m["no_listings"]
+    n_rated = sum(1 for e in enriched if e["score"] is not None)
+    if n_rated == 0:
+        return m["rate_limited"].format(n=len(enriched))
+    return m["found"].format(n=len(enriched), k=len(top))
+
+
+async def present(state: dict) -> dict:
+    raw_listings = [Listing(**li) for li in state.get("listings", [])]
+    dup_idx = also_on(raw_listings)
+    dups = {
+        (raw_listings[i].source, raw_listings[i].external_id): v for i, v in dup_idx.items()
+    }
+    ratings = {(r["source"], r["external_id"]): r for r in (state.get("ratings") or [])}
+    enriched = _enrich_listings(state.get("listings", []), ratings, dups)
     top = enriched[:20]
     # reflect any existing shortlist/decision so the ui can show already-saved cars
     if top:
-        with session() as s:
-            ev = {(e.source, e.external_id): e.status for e in s.query(DbEvaluation).all()}
+        ev = await asyncio.to_thread(_db_evaluation_statuses)
         for t in top:
             t["status"] = ev.get((t["source"], t["external_id"]))
-    n_rated = sum(1 for e in enriched if e["score"] is not None)
     log.info(
         "present: %d listings, %d ratings -> %d enriched, %d dup groups, top=%d",
         len(raw_listings),
@@ -408,14 +395,7 @@ async def present(state: dict) -> dict:
         len(dup_idx),
         len(top),
     )
-    # keep the chat reply short — the top picks render as cards in the ui, don't dump them as text
-    m = _msgs(state.get("lang"))
-    if not enriched:
-        summary = m["no_listings"]
-    elif n_rated == 0:
-        summary = m["rate_limited"].format(n=len(enriched))
-    else:
-        summary = m["found"].format(n=len(enriched), k=len(top))
+    summary = _summarize(enriched, top, state.get("lang"))
     return {"top": top, "reply": summary, "messages": [AIMessage(content=summary)]}
 
 
@@ -437,11 +417,6 @@ async def chat(state: dict) -> dict:
     )
     out = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
     return {"reply": out, "messages": [AIMessage(content=out)]}
-
-
-def _serialize_for_state(li: Listing) -> dict:
-    d = li.model_dump(mode="json")
-    return d
 
 
 def route_decide(state: dict) -> str:
