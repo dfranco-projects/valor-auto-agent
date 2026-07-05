@@ -20,6 +20,7 @@ from valor_auto_agent.db.models import Rating as DbRating
 from valor_auto_agent.db.models import Search
 from valor_auto_agent.db.session import session
 from valor_auto_agent.graph.i18n import _guess_lang, _msgs
+from valor_auto_agent.graph.state import AgentState
 from valor_auto_agent.memory import recall_defaults, remember
 from valor_auto_agent.subagents.inspector import inspect_listings
 from valor_auto_agent.subagents.rater import _gemini_client, rate_batch
@@ -34,7 +35,7 @@ CLASSIFY_SYS = (
 )
 
 
-async def _last_user_text(state: dict) -> str:
+async def _last_user_text(state: AgentState) -> str:
     for m in reversed(state.get("messages", [])):
         if isinstance(m, HumanMessage):
             return m.content if isinstance(m.content, str) else str(m.content)
@@ -43,7 +44,7 @@ async def _last_user_text(state: dict) -> str:
     return ""
 
 
-async def decide(state: dict) -> dict:
+async def decide(state: AgentState) -> dict:
     settings = load()
     if not settings.anthropic_api_key:
         # offline default: treat any non-empty user message as a scrape intent
@@ -161,7 +162,7 @@ def _prefill_note(extracted: dict, recalled: dict, prefill: dict, lang: str) -> 
     return " · ".join(parts)
 
 
-async def extract_filters(state: dict) -> dict:
+async def extract_filters(state: AgentState) -> dict:
     text = await _last_user_text(state)
     raw = await _extract(text, state.get("rater_model"))
     lang = (raw.get("lang") if isinstance(raw, dict) else None) or _guess_lang(text)
@@ -175,7 +176,7 @@ async def extract_filters(state: dict) -> dict:
     }
 
 
-async def collect_filters(state: dict) -> dict:
+async def collect_filters(state: AgentState) -> dict:
     raw = interrupt(
         {
             "need": "filters",
@@ -231,7 +232,7 @@ def _db_store_listings(search_id: int, listings: list[Listing]) -> None:
         snapshot_search(search_id, s)
 
 
-async def scrape(state: dict) -> dict:
+async def scrape(state: AgentState) -> dict:
     filters = Filters(**(state.get("filters") or {}))
     search_id = await asyncio.to_thread(_db_create_search, filters)
 
@@ -270,7 +271,7 @@ def _db_store_ratings(search_id: int, rated: list[dict], model: str) -> None:
         snapshot_search(search_id, s)
 
 
-async def rate(state: dict) -> dict:
+async def rate(state: AgentState) -> dict:
     raw = state.get("listings") or []
     listings = [Listing(**li) for li in raw]
     if not listings:
@@ -312,7 +313,7 @@ def _merge_refined(ratings: list[dict], refined: list[dict]) -> list[dict]:
     return list(by_key.values())
 
 
-async def inspect(state: dict) -> dict:
+async def inspect(state: AgentState) -> dict:
     # deep pass: re-score the highest-ranked photographed listings from their gallery + description
     settings = load()
     model = state.get("rater_model") or settings.rater_model
@@ -357,7 +358,7 @@ def _enrich_listings(raw: list[dict], ratings: dict, dups: dict) -> list[dict[st
     return enriched
 
 
-def _db_evaluation_statuses() -> dict[tuple[str, str], str]:
+def _db_evaluation_statuses() -> dict[tuple[str, str], str | None]:
     with session() as s:
         return {(e.source, e.external_id): e.status for e in s.query(DbEvaluation).all()}
 
@@ -373,12 +374,10 @@ def _summarize(enriched: list[dict], top: list[dict], lang: str | None) -> str:
     return m["found"].format(n=len(enriched), k=len(top))
 
 
-async def present(state: dict) -> dict:
+async def present(state: AgentState) -> dict:
     raw_listings = [Listing(**li) for li in state.get("listings", [])]
     dup_idx = also_on(raw_listings)
-    dups = {
-        (raw_listings[i].source, raw_listings[i].external_id): v for i, v in dup_idx.items()
-    }
+    dups = {(raw_listings[i].source, raw_listings[i].external_id): v for i, v in dup_idx.items()}
     ratings = {(r["source"], r["external_id"]): r for r in (state.get("ratings") or [])}
     enriched = _enrich_listings(state.get("listings", []), ratings, dups)
     top = enriched[:20]
@@ -399,7 +398,7 @@ async def present(state: dict) -> dict:
     return {"top": top, "reply": summary, "messages": [AIMessage(content=summary)]}
 
 
-async def chat(state: dict) -> dict:
+async def chat(state: AgentState) -> dict:
     settings = load()
     text = await _last_user_text(state)
     if not settings.anthropic_api_key:
@@ -419,5 +418,5 @@ async def chat(state: dict) -> dict:
     return {"reply": out, "messages": [AIMessage(content=out)]}
 
 
-def route_decide(state: dict) -> str:
+def route_decide(state: AgentState) -> str:
     return "extract_filters" if state.get("should_scrape") else "chat"

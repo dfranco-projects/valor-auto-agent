@@ -82,9 +82,7 @@ def client(tmp_path, monkeypatch):
     from backend.main import create_app
 
     app = create_app()
-    app.dependency_overrides[get_graph] = lambda: FakeGraph(
-        ["decide", "chat"], {"reply": "hello"}
-    )
+    app.dependency_overrides[get_graph] = lambda: FakeGraph(["decide", "chat"], {"reply": "hello"})
     with TestClient(app) as c:
         yield c
 

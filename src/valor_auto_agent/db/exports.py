@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def snapshot_search(search_id: int, sess: Session) -> Path:
     return out
 
 
-def _render(search: Search, listings: list[Listing]) -> str:
+def _render(search: Search, listings: Sequence[Listing]) -> str:
     lines: list[str] = []
     lines.append(f"# search {search.id}")
     lines.append("")
@@ -57,15 +58,15 @@ def _render(search: Search, listings: list[Listing]) -> str:
         )
     lines.append("")
 
-    rated = [li for li in listings if li.rating]
+    rated = [(li, li.rating) for li in listings if li.rating is not None]
     if rated:
-        rated.sort(key=lambda x: x.rating.score, reverse=True)
+        rated.sort(key=lambda p: p[1].score, reverse=True)
         lines.append("## rationale (top 10)")
         lines.append("")
-        for li in rated[:10]:
-            lines.append(f"### {li.title} — {li.rating.score:.1f}")
+        for li, rating in rated[:10]:
+            lines.append(f"### {li.title} — {rating.score:.1f}")
             lines.append("")
-            lines.append(li.rating.rationale)
+            lines.append(rating.rationale)
             lines.append("")
             lines.append(f"<{li.url}>")
             lines.append("")

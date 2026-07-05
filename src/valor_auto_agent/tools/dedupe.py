@@ -66,8 +66,6 @@ def also_on(listings: list[Listing]) -> dict[int, list[dict[str, str]]]:
     for group in group_duplicates(listings):
         for i in group:
             out[i] = [
-                {"source": listings[j].source, "url": listings[j].url}
-                for j in group
-                if j != i
+                {"source": listings[j].source, "url": listings[j].url} for j in group if j != i
             ]
     return out

@@ -23,13 +23,9 @@ jobs:
         run: uv run ruff check .
 
       - name: Format check (ruff)
-        # TODO: currently 9 files need reformatting; unblock once `uv run ruff format .` lands
-        continue-on-error: true
         run: uv run ruff format --check .
 
       - name: Type check (mypy)
-        # TODO: 16 pre-existing mypy errors; unblock once they are fixed
-        continue-on-error: true
         run: uv run mypy src
 
       - name: Tests

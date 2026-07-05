@@ -9,7 +9,9 @@ from valor_auto_agent.tools.crawler.schemas import Listing
 
 
 def _li(price: int | None) -> Listing:
-    return Listing(source="olx", external_id=str(price), title="bmw", price_eur=price, url="http://x")
+    return Listing(
+        source="olx", external_id=str(price), title="bmw", price_eur=price, url="http://x"
+    )
 
 
 def test_system_prompt_has_rubric():

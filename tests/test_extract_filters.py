@@ -6,9 +6,7 @@ from valor_auto_agent.graph import nodes
 
 
 def test_coerce_drops_invalid_and_unknown():
-    out = nodes._coerce_filters(
-        {"brand": "bmw", "fuel": "petrol", "price_max": 10000, "junk": 1}
-    )
+    out = nodes._coerce_filters({"brand": "bmw", "fuel": "petrol", "price_max": 10000, "junk": 1})
     # 'petrol' is not a valid Fuel enum value; 'junk' is not a filter field
     assert out == {"brand": "bmw", "price_max": 10000}
 

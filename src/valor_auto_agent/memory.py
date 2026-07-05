@@ -27,9 +27,7 @@ def recall_defaults(user_id: str = DEFAULT_USER) -> dict:
 
 
 def remember(filters: dict, user_id: str = DEFAULT_USER) -> None:
-    sticky = {
-        k: v for k, v in (filters or {}).items() if k in _REMEMBERED and v not in (None, "")
-    }
+    sticky = {k: v for k, v in (filters or {}).items() if k in _REMEMBERED and v not in (None, "")}
     if not sticky:
         return
     with session() as s:
